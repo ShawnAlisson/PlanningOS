@@ -50,6 +50,10 @@ async function extractDxfFootprint(input: ApplicationInput): Promise<ExtractedDa
 
 function deterministicExtractFromText(input: ApplicationInput): ExtractedData {
   const text = `${input.title} ${input.address} ${input.description}`.toLowerCase();
+  const heightMatch = text.match(/(\d+(?:\.\d+)?)\s*m(?:etre|eter|etres|eters)?\s*(?:high|height|tall)/);
+  const dimensionMatch =
+    text.match(/(\d+(?:\.\d+)?)\s*m\s*(?:x|×|by)\s*(\d+(?:\.\d+)?)\s*m/) ||
+    text.match(/(\d+(?:\.\d+)?)\s*m\s*(?:wide|width).{0,32}?(\d+(?:\.\d+)?)\s*m\s*(?:deep|depth)/);
 
   const propertyType =
     text.includes('terrace') || text.includes('terraced')
@@ -65,7 +69,13 @@ function deterministicExtractFromText(input: ApplicationInput): ExtractedData {
   const extensionType =
     text.includes('loft') || text.includes('roof') ? 'loft' : text.includes('side') ? 'side' : 'rear';
 
-  const proposedHeight = text.includes('two storey') || text.includes('two-storey') ? 5 : text.includes('single storey') ? 3.2 : 2.8;
+  const proposedHeight = heightMatch
+    ? Number(heightMatch[1])
+    : text.includes('two storey') || text.includes('two-storey')
+    ? 5
+    : text.includes('single storey')
+    ? 3.2
+    : 2.8;
   const proposedVolume = text.includes('large') ? 48 : text.includes('dormer') ? 38 : 30;
 
   return {
@@ -75,6 +85,18 @@ function deterministicExtractFromText(input: ApplicationInput): ExtractedData {
     proposedVolume,
     highwaysProximity: text.includes('highway') || text.includes('main road'),
     neighbourImpactLevel: text.includes('overlooking') || text.includes('overbear') ? 'high' : text.includes('privacy') ? 'medium' : 'low',
+    footprint: dimensionMatch
+      ? {
+          source: 'description',
+          widthM: Number(dimensionMatch[1]),
+          depthM: Number(dimensionMatch[2]),
+          areaM2: Number((Number(dimensionMatch[1]) * Number(dimensionMatch[2])).toFixed(1)),
+          vertexCount: 4,
+          unitAssumption: 'metres parsed from short description',
+          rotationDeg: 0,
+          parserConfidence: 'medium',
+        }
+      : undefined,
   };
 }
 

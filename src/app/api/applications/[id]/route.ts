@@ -75,7 +75,7 @@ export async function PATCH(
       id,
       'geometry_update',
       'user',
-      `Manual 3D massing model adjustments saved (Height: ${mergedExtractedData?.proposedHeight}m, Footprint: ${mergedExtractedData?.footprint?.widthM}m x ${mergedExtractedData?.footprint?.depthM}m).`
+      `Manual 3D massing model adjustments saved (Height: ${mergedExtractedData?.proposedHeight}m, Footprint: ${mergedExtractedData?.footprint?.widthM}m x ${mergedExtractedData?.footprint?.depthM}m, Rotation: ${mergedExtractedData?.footprint?.rotationDeg ?? 0}deg).`
     );
 
     return NextResponse.json({ application: updated });

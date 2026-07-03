@@ -13,8 +13,10 @@ export interface MassingInput {
   footprint?: { 
     widthM: number; 
     depthM: number;
+    rotationDeg?: number;
     latOffsetM?: number;
     lngOffsetM?: number;
+    verticesM?: Array<{ x: number; y: number }>;
   };
 }
 
@@ -40,31 +42,45 @@ export function buildMassingFootprint(input: MassingInput) {
   }
 
   const metresPerDegreeLng = METRES_PER_DEGREE_LAT * Math.cos((input.lat * Math.PI) / 180);
-  const dLat = depthM / METRES_PER_DEGREE_LAT / 2;
-  const dLng = widthM / metresPerDegreeLng / 2;
-
   // Offset calculation: if manual offsets are provided, use them. Otherwise,
   // shift slightly "south-east" of the site point as a default schematic helper.
   const hasManualOffset = input.footprint?.latOffsetM !== undefined || input.footprint?.lngOffsetM !== undefined;
+  const fallbackDLat = depthM / METRES_PER_DEGREE_LAT / 2;
+  const fallbackDLng = widthM / metresPerDegreeLng / 2;
   
   const offsetLat = hasManualOffset
     ? (input.footprint?.latOffsetM || 0) / METRES_PER_DEGREE_LAT
-    : -dLat * 0.6;
+    : -fallbackDLat * 0.6;
     
   const offsetLng = hasManualOffset
     ? (input.footprint?.lngOffsetM || 0) / metresPerDegreeLng
-    : dLng * 0.6;
+    : fallbackDLng * 0.6;
 
   const cLat = input.lat + offsetLat;
   const cLng = input.lng + offsetLng;
+  // MapLibre coordinates use north-up geographic axes. The DXF/editor rotation
+  // is shown clockwise in the UI, so invert it when projecting into lng/lat.
+  const rotationRad = (-(input.footprint?.rotationDeg || 0) * Math.PI) / 180;
+  const rotate = (x: number, y: number) => ({
+    x: x * Math.cos(rotationRad) - y * Math.sin(rotationRad),
+    y: x * Math.sin(rotationRad) + y * Math.cos(rotationRad),
+  });
 
-  const ring: [number, number][] = [
-    [cLng - dLng, cLat - dLat],
-    [cLng + dLng, cLat - dLat],
-    [cLng + dLng, cLat + dLat],
-    [cLng - dLng, cLat + dLat],
-    [cLng - dLng, cLat - dLat],
-  ];
+  const rawVertices = input.footprint?.verticesM?.length
+    ? scaleVerticesToSize(input.footprint.verticesM, widthM, depthM)
+    : [
+        { x: -widthM / 2, y: -depthM / 2 },
+        { x: widthM / 2, y: -depthM / 2 },
+        { x: widthM / 2, y: depthM / 2 },
+        { x: -widthM / 2, y: depthM / 2 },
+      ];
+
+  const ring: [number, number][] = rawVertices.map((point) => {
+    const rotated = rotate(point.x, point.y);
+    return [cLng + rotated.x / metresPerDegreeLng, cLat + rotated.y / METRES_PER_DEGREE_LAT];
+  });
+
+  if (ring.length > 0) ring.push(ring[0]);
 
   return {
     type: 'Feature' as const,
@@ -72,6 +88,7 @@ export function buildMassingFootprint(input: MassingInput) {
       height,
       widthM: Number(widthM.toFixed(1)),
       depthM: Number(depthM.toFixed(1)),
+      rotationDeg: input.footprint?.rotationDeg || 0,
       isReal,
     },
     geometry: {
@@ -79,4 +96,24 @@ export function buildMassingFootprint(input: MassingInput) {
       coordinates: [ring],
     },
   };
+}
+
+function scaleVerticesToSize(vertices: Array<{ x: number; y: number }>, targetWidthM: number, targetDepthM: number) {
+  const xs = vertices.map((point) => point.x);
+  const ys = vertices.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const currentWidth = maxX - minX;
+  const currentDepth = maxY - minY;
+  const scaleX = currentWidth > 0 ? targetWidthM / currentWidth : 1;
+  const scaleY = currentDepth > 0 ? targetDepthM / currentDepth : 1;
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  return vertices.map((point) => ({
+    x: (point.x - centerX) * scaleX,
+    y: (point.y - centerY) * scaleY,
+  }));
 }

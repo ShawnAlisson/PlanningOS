@@ -96,6 +96,7 @@ export const PolicyAgent = {
       evidence,
       policyRefs,
       contradictions: [],
+      evidenceQuality: input.extractedData?.footprint ? 'parsed-dxf' : 'heuristic',
     });
   },
 };

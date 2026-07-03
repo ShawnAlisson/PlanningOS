@@ -20,7 +20,7 @@ from uagents import Protocol
 PLANNINGOS_AGENT_ADDRESS = os.environ.get("PLANNINGOS_AGENT_ADDRESS", "")
 TEST_MESSAGE = os.environ.get(
     "PLANNINGOS_TEST_MESSAGE",
-    "Please check this proposal: single-storey rear extension at 24 Kingswood Road, London SE22 8NG, "
+    "Please check this proposal: single-storey rear extension at 12 Grove Vale, London SE22 8QZ, "
     "extending 4 metres with a flat roof and two rooflights.",
 )
 

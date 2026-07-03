@@ -56,6 +56,7 @@ export const FloodRiskAgent = {
       evidence,
       policyRefs,
       contradictions,
+      evidenceQuality: floodEntities.length > 0 ? 'official' : 'official',
     });
   },
 };

@@ -11,6 +11,23 @@ export const applicationStatusSchema = z.enum(['pending', 'processing', 'complet
 export const planningDecisionSchema = z.enum(['approve', 'reject', 'review']);
 export const sourceModeSchema = z.enum(['demo', 'manual', 'upload']).optional();
 export const agentTypeSchema = z.enum(['policy', 'heritage', 'flood', 'highways', 'neighbour']);
+export const evidenceQualitySchema = z.enum(['official', 'parsed-dxf', 'user-provided', 'llm-inferred', 'heuristic']);
+export const structuralSemanticSchema = z.enum([
+  'existing',
+  'proposed',
+  'demolition',
+  'walls',
+  'openings',
+  'floors',
+  'roof',
+  'electrical',
+  'lighting',
+  'plumbing',
+  'hvac',
+  'furniture',
+  'annotation',
+  'unknown',
+]);
 
 const legacyDecisionNormalizer = z.preprocess((value) => {
   if (value === 'conditional') return 'review';
@@ -25,8 +42,40 @@ export const dxfFootprintSchema = z.object({
   areaM2: z.number().positive(),
   vertexCount: z.number().int().nonnegative(),
   unitAssumption: z.string(),
+  rotationDeg: z.number().optional(),
   latOffsetM: z.number().optional(),
   lngOffsetM: z.number().optional(),
+  centroidM: z.object({ x: z.number(), y: z.number() }).optional(),
+  verticesM: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
+  parserConfidence: z.enum(['high', 'medium', 'low']).optional(),
+  entityTypeCounts: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  layerSummaries: z
+    .array(
+      z.object({
+        name: z.string(),
+        semantic: structuralSemanticSchema,
+        entityCount: z.number().int().nonnegative(),
+        boundsM: z.object({ minX: z.number(), minY: z.number(), maxX: z.number(), maxY: z.number() }).optional(),
+      })
+    )
+    .optional(),
+  structuralLayers: z
+    .array(
+      z.object({
+        name: z.string(),
+        semantic: structuralSemanticSchema,
+        entityCount: z.number().int().nonnegative(),
+        entities: z.array(
+          z.object({
+            type: z.string(),
+            closed: z.boolean().optional(),
+            text: z.string().optional(),
+            pointsM: z.array(z.object({ x: z.number(), y: z.number() })),
+          })
+        ),
+      })
+    )
+    .optional(),
 });
 
 export const extractedDataSchema = z.object({
@@ -142,6 +191,7 @@ export const agentResultSchema = z.object({
   evidence: z.array(z.string()),
   policyRefs: z.array(z.string()),
   contradictions: z.array(z.string()).default([]),
+  evidenceQuality: evidenceQualitySchema.default('heuristic'),
   createdAt: z.string().datetime().optional(),
 });
 

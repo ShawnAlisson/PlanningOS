@@ -49,6 +49,7 @@ export const NeighbourImpactAgent = {
       evidence,
       policyRefs,
       contradictions,
+      evidenceQuality: 'user-provided',
     });
   },
 };

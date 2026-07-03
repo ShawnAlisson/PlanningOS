@@ -53,21 +53,21 @@ export default function Sidebar() {
 
     if (type === 'loft') {
       payload = {
-        title: 'Loft Extension with Rear Dormer',
-        address: '24 Kingswood Road, London SE22 8NG',
-        description: 'Proposed hip-to-gable loft conversion with rear dormer window and two front rooflights. Intended under permitted development rules.',
+        title: 'Full DXF Householder Extension Demo',
+        address: '12 Grove Vale, London SE22 8QZ',
+        description:
+          'Full-service DXF demo for a two storey rear extension, 5m high, with existing walls, proposed extension, openings, furniture, electrical power, lighting, plumbing waste, and HVAC vent routes. Includes overlooking risk and construction close to the highway.',
         sourceMode: 'demo',
-        sourceNote: 'Demo record: real postcode, live-derived constraints. Only the project brief below is preset.',
+        sourceNote: 'Full DXF demo: real postcode, live-derived constraints, uploaded CAD fixture with floor/service layers.',
         files: [
-          { name: 'Architectural_Drawings_v2.pdf', url: '#', size: 1048576, type: 'application/pdf' },
-          { name: 'Design_and_Access_Statement.pdf', url: '#', size: 512000, type: 'application/pdf' },
+          { name: 'full-service-house-plan.dxf', url: '/demos/full-service-house-plan.dxf', size: 12000, type: 'application/dxf' },
         ],
         extractedData: {
           propertyType: 'Semi-detached',
-          extensionType: 'loft',
-          proposedHeight: 2.8,
-          proposedVolume: 38,
-          neighbourImpactLevel: 'low',
+          extensionType: 'rear',
+          proposedHeight: 5,
+          proposedVolume: 55,
+          neighbourImpactLevel: 'high',
         },
       };
     } else if (type === 'heritage') {
@@ -111,11 +111,13 @@ export default function Sidebar() {
     }
 
     try {
-      const res = await fetch('/api/applications/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = type === 'loft'
+        ? await submitDxfDemo(payload)
+        : await fetch('/api/applications/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
       const newApp = await res.json();
       router.push(`/processing/${newApp.id}`);
     } catch (e) {
@@ -140,8 +142,8 @@ export default function Sidebar() {
             disabled={preloading !== null}
             className="flex flex-col text-left p-3 rounded-xl border border-zinc-250 bg-zinc-50/50 hover:border-violet-500/30 hover:bg-violet-50/15 transition-all text-xs font-semibold group cursor-pointer disabled:opacity-50"
           >
-            <span className="text-slate-800 group-hover:text-violet-600 transition-colors">1. Loft Extension Demo</span>
-            <span className="text-[10px] text-slate-400 mt-1 line-clamp-1">Semi-detached householder extension.</span>
+            <span className="text-slate-800 group-hover:text-violet-600 transition-colors">1. Full DXF BIM Demo</span>
+            <span className="text-[10px] text-slate-400 mt-1 line-clamp-1">Before/after floors, services, and real postcode.</span>
           </button>
 
           <button
@@ -243,4 +245,16 @@ export default function Sidebar() {
       </div>
     </div>
   );
+}
+
+async function submitDxfDemo(payload: unknown) {
+  const dxfRes = await fetch('/demos/full-service-house-plan.dxf');
+  if (!dxfRes.ok) throw new Error('Could not load bundled DXF demo asset');
+
+  const dxfBlob = await dxfRes.blob();
+  const form = new FormData();
+  form.append('metadata', JSON.stringify(payload));
+  form.append('files', new File([dxfBlob], 'full-service-house-plan.dxf', { type: 'application/dxf' }));
+
+  return fetch('/api/applications/upload', { method: 'POST', body: form });
 }

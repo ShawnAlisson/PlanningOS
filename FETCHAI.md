@@ -10,7 +10,7 @@ PlanningOS ships two layers of Fetch.ai integration:
 
 ## What the agent does
 
-A user chats naturally (e.g. *"Check this proposal: single-storey rear extension at 24 Kingswood Road, London SE22 8NG, extending 4 metres"*). The uAgent:
+A user chats naturally (e.g. *"Check this proposal: single-storey rear extension at 12 Grove Vale, London SE22 8QZ, extending 4 metres"*). The uAgent:
 
 1. Extracts a UK postcode from the message (regex) and forwards the full text to the PlanningOS backend.
 2. The backend geocodes the postcode (postcodes.io), pulls real planning constraints for that point (planning.data.gov.uk — conservation areas, listed buildings, flood risk zones, green belt, Article 4 directions), and runs the five specialist agents (policy, heritage, flood, highways, neighbour) in parallel.
@@ -52,7 +52,7 @@ curl -X POST http://localhost:3000/api/agent/chat \
   -d '{
     "message": "Please check this loft extension",
     "title": "Loft Extension with Rear Dormer",
-    "address": "24 Kingswood Road, London SE22 8NG",
+    "address": "12 Grove Vale, London SE22 8QZ",
     "description": "Proposed hip-to-gable loft conversion with rear dormer and rooflights."
   }'
 ```

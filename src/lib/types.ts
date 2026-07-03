@@ -67,8 +67,58 @@ export interface Application {
       areaM2: number;
       vertexCount: number;
       unitAssumption: string;
+      rotationDeg?: number;
       latOffsetM?: number;
       lngOffsetM?: number;
+      centroidM?: { x: number; y: number };
+      verticesM?: Array<{ x: number; y: number }>;
+      parserConfidence?: 'high' | 'medium' | 'low';
+      entityTypeCounts?: Record<string, number>;
+      layerSummaries?: Array<{
+        name: string;
+        semantic:
+          | 'existing'
+          | 'proposed'
+          | 'demolition'
+          | 'walls'
+          | 'openings'
+          | 'floors'
+          | 'roof'
+          | 'electrical'
+          | 'lighting'
+          | 'plumbing'
+          | 'hvac'
+          | 'furniture'
+          | 'annotation'
+          | 'unknown';
+        entityCount: number;
+        boundsM?: { minX: number; minY: number; maxX: number; maxY: number };
+      }>;
+      structuralLayers?: Array<{
+        name: string;
+        semantic:
+          | 'existing'
+          | 'proposed'
+          | 'demolition'
+          | 'walls'
+          | 'openings'
+          | 'floors'
+          | 'roof'
+          | 'electrical'
+          | 'lighting'
+          | 'plumbing'
+          | 'hvac'
+          | 'furniture'
+          | 'annotation'
+          | 'unknown';
+        entityCount: number;
+        entities: Array<{
+          type: string;
+          closed?: boolean;
+          text?: string;
+          pointsM: Array<{ x: number; y: number }>;
+        }>;
+      }>;
     };
   };
   // --- Permission-aware memory layer (Based AI track) ---
@@ -91,6 +141,7 @@ export interface AgentResult {
   evidence: string[];
   policyRefs: string[];
   contradictions?: string[];
+  evidenceQuality?: 'official' | 'parsed-dxf' | 'user-provided' | 'llm-inferred' | 'heuristic';
   createdAt?: string;
 }
 

@@ -31,7 +31,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), enter a real UK postcode (try `SE22 8NG`, `BA1 5HG`, or `SL6 1AP`), and start an audit. Real conservation area / listed building / flood zone / green belt / Article 4 data is fetched live for that exact point.
+Open [http://localhost:3000](http://localhost:3000), enter a real UK postcode (try `SE22 8QZ`, `BA1 5HG`, or `SL6 1AP`), and start an audit. Real conservation area / listed building / flood zone / green belt / Article 4 data is fetched live for that exact point.
 
 ### LLM configuration (optional)
 
@@ -94,8 +94,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### 1. Real postcode + live government data (no LLM needed)
 
-1. On the home page, type a real postcode into the search box, e.g. `SE22 8NG`, `BA1 5HG`, or `SL6 1AP`, and pick a suggestion (this hits `postcodes.io` live — try opening the Network tab and watch the `/api/geo/search` call).
-2. Confirm the address. The app now calls `/api/geo/constraints`, which hits `planning.data.gov.uk` live for that exact lat/lng — you should see real flags appear (e.g. "Conservation area", "Flood Zone 2/3", "Green belt") depending on the postcode you picked. `SE22 8NG` (East Dulwich) has a real conservation area; `BA1 5HG` (Bath) sits in a World Heritage Site / conservation area; pick any rural postcode to see green belt.
+1. On the home page, type a real postcode into the search box, e.g. `SE22 8QZ`, `BA1 5HG`, or `SL6 1AP`, and pick a suggestion (this hits `postcodes.io` live — try opening the Network tab and watch the `/api/geo/search` call).
+2. Confirm the address. The app now calls `/api/geo/constraints`, which hits `planning.data.gov.uk` live for that exact lat/lng — you should see real flags appear (e.g. "Conservation area", "Flood Zone 2/3", "Green belt") depending on the postcode you picked. `SE22 8QZ` (East Dulwich) is a current South London postcode; `BA1 5HG` (Bath) sits in a World Heritage Site / conservation area; pick any rural postcode to see green belt.
 3. Fill in a short project description, e.g. *"Single storey rear extension, 3.2m high, brick to match existing"*, and continue.
 
 ### 2. Real 3D footprint from an uploaded drawing
@@ -161,7 +161,7 @@ You can also verify it purely via the API without the UI:
 
 ```bash
 curl -s -X POST http://localhost:3000/api/applications/upload \
-  -F 'metadata={"title":"DXF test","description":"Rear extension","address":"SE22 8NG"}' \
+  -F 'metadata={"title":"DXF test","description":"Rear extension","address":"SE22 8QZ"}' \
   -F "files=@/tmp/extension.dxf;type=application/dxf" | tee /tmp/app.json
 
 ID=$(python3 -c "import json;print(json.load(open('/tmp/app.json'))['id'])")

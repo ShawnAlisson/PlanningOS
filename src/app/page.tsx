@@ -54,7 +54,7 @@ interface ConstraintSummary {
 }
 
 const DEMO_POSTCODES = [
-  { postcode: 'SE22 8NG', note: 'Typical South London householder case' },
+  { postcode: 'SE22 8QZ', note: 'Typical South London householder case' },
   { postcode: 'BA1 5HG', note: 'Bath — heritage-dense city centre' },
   { postcode: 'SL6 1AP', note: 'Maidenhead — river/flood corridor' },
 ];
@@ -257,7 +257,7 @@ export default function Dashboard() {
                     setPostcodeQuery(e.target.value);
                     setSelectedPostcode(null);
                   }}
-                  placeholder="Enter a real UK postcode, e.g. SE22 8NG"
+                  placeholder="Enter a real UK postcode, e.g. SE22 8QZ"
                   className="w-full bg-transparent text-base sm:text-lg font-medium text-slate-900 outline-none placeholder:text-slate-400"
                 />
               </div>

@@ -38,6 +38,7 @@ export const HighwaysAgent = {
       evidence,
       policyRefs,
       contradictions,
+      evidenceQuality: highwaysProximity ? 'heuristic' : 'heuristic',
     });
   },
 };

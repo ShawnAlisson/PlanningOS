@@ -25,6 +25,7 @@ import { AgentResult, Application, AuditLog, FinalDecision } from '@/lib/types';
 import SiteMap3D from '@/app/components/SiteMap3D';
 import AccessPanel from '@/app/components/AccessPanel';
 import ImpactPanel from '@/app/components/ImpactPanel';
+import StructuralPlan3D from '@/app/components/StructuralPlan3D';
 
 export default function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -44,6 +45,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const [overrideHeight, setOverrideHeight] = useState<number>(3);
   const [overrideWidth, setOverrideWidth] = useState<number>(10);
   const [overrideDepth, setOverrideDepth] = useState<number>(10);
+  const [overrideRotationDeg, setOverrideRotationDeg] = useState<number>(0);
   const [overrideLatOffsetM, setOverrideLatOffsetM] = useState<number>(0);
   const [overrideLngOffsetM, setOverrideLngOffsetM] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -67,6 +69,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
         setOverrideHeight(app.extractedData?.proposedHeight ?? 3);
         setOverrideWidth(app.extractedData?.footprint?.widthM ?? 10);
         setOverrideDepth(app.extractedData?.footprint?.depthM ?? 10);
+        setOverrideRotationDeg(app.extractedData?.footprint?.rotationDeg ?? 0);
         setOverrideLatOffsetM(app.extractedData?.footprint?.latOffsetM ?? 0);
         setOverrideLngOffsetM(app.extractedData?.footprint?.lngOffsetM ?? 0);
       }
@@ -140,8 +143,15 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               areaM2: Number((overrideWidth * overrideDepth).toFixed(1)),
               vertexCount: application.extractedData?.footprint?.vertexCount ?? 4,
               unitAssumption: 'Manually adjusted in 3D Editor',
+              rotationDeg: overrideRotationDeg,
               latOffsetM: overrideLatOffsetM,
               lngOffsetM: overrideLngOffsetM,
+              centroidM: application.extractedData?.footprint?.centroidM,
+              verticesM: application.extractedData?.footprint?.verticesM,
+              parserConfidence: application.extractedData?.footprint?.parserConfidence,
+              entityTypeCounts: application.extractedData?.footprint?.entityTypeCounts,
+              layerSummaries: application.extractedData?.footprint?.layerSummaries,
+              structuralLayers: application.extractedData?.footprint?.structuralLayers,
             },
           },
         }),
@@ -176,6 +186,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     setOverrideHeight(application.extractedData?.proposedHeight ?? 3);
     setOverrideWidth(defaultDxf?.widthM ?? 10);
     setOverrideDepth(defaultDxf?.depthM ?? 10);
+    setOverrideRotationDeg(defaultDxf?.rotationDeg ?? 0);
     setOverrideLatOffsetM(0);
     setOverrideLngOffsetM(0);
   };
@@ -350,6 +361,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
               overrideHeight={overrideHeight}
               overrideWidth={overrideWidth}
               overrideDepth={overrideDepth}
+              overrideRotationDeg={overrideRotationDeg}
               overrideLatOffsetM={overrideLatOffsetM}
               overrideLngOffsetM={overrideLngOffsetM}
             />
@@ -395,6 +407,15 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                     <span>1.0m</span>
                     <span>12.0m (Multi-Floor Extension)</span>
                   </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    step={0.1}
+                    value={overrideHeight}
+                    onChange={(e) => setOverrideHeight(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-violet-400"
+                  />
                 </div>
 
                 {/* Width Slider */}
@@ -412,6 +433,15 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                     onChange={(e) => setOverrideWidth(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
                   />
+                  <input
+                    type="number"
+                    min={1}
+                    max={80}
+                    step={0.1}
+                    value={overrideWidth}
+                    onChange={(e) => setOverrideWidth(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-violet-400"
+                  />
                 </div>
 
                 {/* Depth Slider */}
@@ -428,6 +458,41 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                     value={overrideDepth} 
                     onChange={(e) => setOverrideDepth(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={80}
+                    step={0.1}
+                    value={overrideDepth}
+                    onChange={(e) => setOverrideDepth(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-violet-400"
+                  />
+                </div>
+
+                {/* Rotation Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    <span>Rotation</span>
+                    <span className="text-slate-700 font-extrabold text-xs">{overrideRotationDeg.toFixed(0)}°</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-180}
+                    max={180}
+                    step={1}
+                    value={overrideRotationDeg}
+                    onChange={(e) => setOverrideRotationDeg(parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                  />
+                  <input
+                    type="number"
+                    min={-180}
+                    max={180}
+                    step={1}
+                    value={overrideRotationDeg}
+                    onChange={(e) => setOverrideRotationDeg(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-violet-400"
                   />
                 </div>
 
@@ -455,6 +520,15 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                     onChange={(e) => setOverrideLngOffsetM(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
                   />
+                  <input
+                    type="number"
+                    min={-100}
+                    max={100}
+                    step={0.1}
+                    value={overrideLngOffsetM}
+                    onChange={(e) => setOverrideLngOffsetM(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-violet-400"
+                  />
                 </div>
 
                 {/* North-South Offset Slider */}
@@ -473,6 +547,15 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                     value={overrideLatOffsetM} 
                     onChange={(e) => setOverrideLatOffsetM(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                  />
+                  <input
+                    type="number"
+                    min={-100}
+                    max={100}
+                    step={0.1}
+                    value={overrideLatOffsetM}
+                    onChange={(e) => setOverrideLatOffsetM(Number(e.target.value))}
+                    className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-violet-400"
                   />
                 </div>
 
@@ -495,6 +578,10 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                   <span className="text-violet-600 font-black uppercase">
                     {application.extractedData?.footprint?.source === 'custom' ? 'User Manual override' : 'Extracted from DXF'}
                   </span>
+                </div>
+                <div className="flex justify-between text-slate-500 font-bold">
+                  <span>DXF Layers:</span>
+                  <span className="text-slate-700 font-extrabold">{application.extractedData?.footprint?.layerSummaries?.length || 0}</span>
                 </div>
               </div>
 
@@ -533,8 +620,13 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
         </div>
       </section>
 
-      {/* Traditional vs Tool turnaround benchmarker */}
-      <ImpactPanel agentCount={results.length} />
+      <StructuralPlan3D
+        application={application}
+        overrideHeight={overrideHeight}
+        overrideWidth={overrideWidth}
+        overrideDepth={overrideDepth}
+        overrideRotationDeg={overrideRotationDeg}
+      />
 
       {/* Key Triage Insights & Risks Grid */}
       <section className="grid gap-6 lg:grid-cols-2">
@@ -628,6 +720,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                       </div>
                       <p className="text-[11px] text-slate-400 mt-1 font-bold">
                         Score <span className="text-slate-600 font-extrabold">{result.score}/100</span> · Confidence <span className="text-slate-600 font-extrabold">{result.confidence}%</span>
+                        {' '}· Evidence <span className="text-slate-600 font-extrabold">{result.evidenceQuality || 'heuristic'}</span>
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -687,11 +780,8 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
 
-        {/* Right column: Temporal security rules & Verifiable Audit Trail */}
+        {/* Right column: Verifiable Audit Trail */}
         <div className="space-y-4">
-          
-          {/* Permission-aware temporal rules control panel */}
-          <AccessPanel applicationId={application.id} />
 
           {/* Verifiable audit trail log pipeline */}
           <div className="space-y-3">
@@ -727,6 +817,12 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
         </div>
 
       </section>
+
+      {/* Traditional vs Tool turnaround benchmarker */}
+      <ImpactPanel agentCount={results.length} />
+
+      {/* Permission-aware temporal rules control panel */}
+      <AccessPanel applicationId={application.id} />
 
     </div>
   );

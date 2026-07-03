@@ -87,6 +87,7 @@ export const HeritageAgent = {
       evidence,
       policyRefs,
       contradictions,
+      evidenceQuality: constraints ? 'official' : 'user-provided',
     });
   },
 };

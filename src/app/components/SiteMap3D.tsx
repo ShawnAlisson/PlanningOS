@@ -27,6 +27,7 @@ interface SiteMap3DProps {
   overrideHeight?: number;
   overrideWidth?: number;
   overrideDepth?: number;
+  overrideRotationDeg?: number;
   overrideLatOffsetM?: number;
   overrideLngOffsetM?: number;
 }
@@ -37,6 +38,7 @@ export default function SiteMap3D({
   overrideHeight,
   overrideWidth,
   overrideDepth,
+  overrideRotationDeg,
   overrideLatOffsetM,
   overrideLngOffsetM,
 }: SiteMap3DProps) {
@@ -53,11 +55,14 @@ export default function SiteMap3D({
   const activeVolume = application.extractedData?.proposedVolume;
   const activeWidthM = overrideWidth !== undefined ? overrideWidth : (footprint?.widthM ?? 10);
   const activeDepthM = overrideDepth !== undefined ? overrideDepth : (footprint?.depthM ?? 10);
+  const activeRotationDeg = overrideRotationDeg !== undefined ? overrideRotationDeg : (footprint?.rotationDeg ?? 0);
   const activeLatOffsetM = overrideLatOffsetM !== undefined ? overrideLatOffsetM : footprint?.latOffsetM;
   const activeLngOffsetM = overrideLngOffsetM !== undefined ? overrideLngOffsetM : footprint?.lngOffsetM;
 
   useEffect(() => {
     if (!geo || !containerRef.current) return;
+    setReady(false);
+    setError(null);
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -120,8 +125,10 @@ export default function SiteMap3D({
         footprint: {
           widthM: activeWidthM,
           depthM: activeDepthM,
+          rotationDeg: activeRotationDeg,
           latOffsetM: activeLatOffsetM,
           lngOffsetM: activeLngOffsetM,
+          verticesM: footprint?.verticesM,
         },
       });
 
@@ -141,8 +148,9 @@ export default function SiteMap3D({
     });
 
     return () => {
+      setReady(false);
       map.remove();
-      mapRef.current = null;
+      if (mapRef.current === map) mapRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo?.lat, geo?.lng]);
@@ -152,7 +160,12 @@ export default function SiteMap3D({
     const map = mapRef.current;
     if (!map || !ready || !geo) return;
 
-    const source = map.getSource('proposed-massing') as maplibregl.GeoJSONSource | undefined;
+    let source: maplibregl.GeoJSONSource | undefined;
+    try {
+      source = map.getSource('proposed-massing') as maplibregl.GeoJSONSource | undefined;
+    } catch {
+      return;
+    }
     if (!source) return;
 
     const massing = buildMassingFootprint({
@@ -160,16 +173,27 @@ export default function SiteMap3D({
       lng: geo.lng,
       proposedHeight: activeHeight,
       proposedVolume: activeVolume,
-      footprint: {
-        widthM: activeWidthM,
-        depthM: activeDepthM,
-        latOffsetM: activeLatOffsetM,
-        lngOffsetM: activeLngOffsetM,
-      },
-    });
+        footprint: {
+          widthM: activeWidthM,
+          depthM: activeDepthM,
+          rotationDeg: activeRotationDeg,
+          latOffsetM: activeLatOffsetM,
+          lngOffsetM: activeLngOffsetM,
+          verticesM: footprint?.verticesM,
+        },
+      });
 
-    source.setData(massing);
-  }, [ready, geo, activeHeight, activeVolume, activeWidthM, activeDepthM, activeLatOffsetM, activeLngOffsetM]);
+    try {
+      source.setData(massing);
+      if (map.getLayer('proposed-massing-extrusion')) {
+        map.setPaintProperty('proposed-massing-extrusion', 'fill-extrusion-height', ['get', 'height']);
+      }
+      map.triggerRepaint();
+    } catch {
+      // MapLibre can briefly remove sources while React remounts during hot
+      // updates or route transitions. The next render tick will resync it.
+    }
+  }, [ready, geo, activeHeight, activeVolume, activeWidthM, activeDepthM, activeRotationDeg, activeLatOffsetM, activeLngOffsetM, footprint?.verticesM]);
 
   if (!geo) {
     return (
@@ -206,6 +230,7 @@ export default function SiteMap3D({
             ? `Extruded block: real footprint from uploaded DXF (${footprint.widthM}m × ${footprint.depthM}m, ${footprint.unitAssumption}), ${application.extractedData?.proposedHeight ?? 3}m tall`
             : `Extruded block: schematic estimated massing (${application.extractedData?.proposedHeight ?? 3}m tall) — upload a DXF drawing for a real footprint`}
         </span>
+        <span className="inline-flex items-center gap-1">Rotation {activeRotationDeg.toFixed(0)}° · {footprint?.parserConfidence ? `DXF confidence ${footprint.parserConfidence}` : 'schematic confidence low'}</span>
         {CONSTRAINT_STYLES.map(({ key, color, label }) => {
           const count = (application.siteConstraints?.[key] as unknown[] | undefined)?.length || 0;
           if (!count) return null;
