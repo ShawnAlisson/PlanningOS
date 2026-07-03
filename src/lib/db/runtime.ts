@@ -40,7 +40,16 @@ export const DbRuntime = {
     if (hasMongoConfig()) {
       return withMongo(async (db) => {
         const docs = await db.collection('applications').find({}).sort({ createdAt: -1 }).toArray();
-        return docs.map((doc) => applicationSchema.parse({ ...doc, id: String(doc.id ?? doc._id) }));
+        const results: Application[] = [];
+        for (const doc of docs) {
+          const parsed = applicationSchema.safeParse({ ...doc, id: String(doc.id ?? doc._id) });
+          if (parsed.success) {
+            results.push(parsed.data);
+          } else {
+            console.warn(`[DbRuntime] Skipped invalid application document ${doc._id || doc.id}:`, parsed.error);
+          }
+        }
+        return results;
       });
     }
 
@@ -52,7 +61,13 @@ export const DbRuntime = {
       return withMongo(async (db) => {
         const doc = await db.collection('applications').findOne({ id });
         if (!doc) return undefined;
-        return applicationSchema.parse({ ...doc, id: String(doc.id ?? id) });
+        const parsed = applicationSchema.safeParse({ ...doc, id: String(doc.id ?? id) });
+        if (parsed.success) {
+          return parsed.data;
+        } else {
+          console.error(`[DbRuntime] Failed to parse application ${id}:`, parsed.error);
+          return undefined;
+        }
       });
     }
 
@@ -118,7 +133,16 @@ export const DbRuntime = {
     if (hasMongoConfig()) {
       return withMongo(async (db) => {
         const docs = await db.collection('agentResults').find({ applicationId }).sort({ createdAt: 1 }).toArray();
-        return docs.map((doc) => agentResultSchema.parse(doc));
+        const results: AgentResult[] = [];
+        for (const doc of docs) {
+          const parsed = agentResultSchema.safeParse(doc);
+          if (parsed.success) {
+            results.push(parsed.data);
+          } else {
+            console.warn(`[DbRuntime] Skipped invalid agent result:`, parsed.error);
+          }
+        }
+        return results;
       });
     }
 
@@ -161,7 +185,14 @@ export const DbRuntime = {
     if (hasMongoConfig()) {
       return withMongo(async (db) => {
         const doc = await db.collection('finalDecisions').findOne({ applicationId });
-        return doc ? finalDecisionSchema.parse(doc) : undefined;
+        if (!doc) return undefined;
+        const parsed = finalDecisionSchema.safeParse(doc);
+        if (parsed.success) {
+          return parsed.data;
+        } else {
+          console.error(`[DbRuntime] Failed to parse final decision for ${applicationId}:`, parsed.error);
+          return undefined;
+        }
       });
     }
 
@@ -198,7 +229,16 @@ export const DbRuntime = {
     if (hasMongoConfig()) {
       return withMongo(async (db) => {
         const docs = await db.collection('auditLogs').find({ applicationId }).sort({ timestamp: 1 }).toArray();
-        return docs.map((doc) => auditLogSchema.parse(doc));
+        const results: AuditLog[] = [];
+        for (const doc of docs) {
+          const parsed = auditLogSchema.safeParse(doc);
+          if (parsed.success) {
+            results.push(parsed.data);
+          } else {
+            console.warn(`[DbRuntime] Skipped invalid audit log:`, parsed.error);
+          }
+        }
+        return results;
       });
     }
 

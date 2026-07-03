@@ -26,9 +26,10 @@ export default function Sidebar() {
     try {
       const res = await fetch('/api/applications');
       const data = await res.json();
-      setApplications(data);
+      setApplications(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
+      setApplications([]);
     } finally {
       setLoading(false);
     }

@@ -118,9 +118,14 @@ export default function Dashboard() {
       try {
         const res = await fetch('/api/applications');
         const data = await res.json();
-        if (active) setApplications(data);
+        if (active) {
+          setApplications(Array.isArray(data) ? data : []);
+        }
       } catch (e) {
         console.error(e);
+        if (active) {
+          setApplications([]);
+        }
       } finally {
         if (active) setLoadingApps(false);
       }

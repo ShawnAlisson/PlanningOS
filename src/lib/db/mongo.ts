@@ -18,7 +18,11 @@ async function getClient() {
       throw new Error('MONGODB_URI is not configured');
     }
 
-    const client = new MongoClient(uri);
+    const client = new MongoClient(uri, {
+      connectTimeoutMS: 5000,
+      socketTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+    });
     clientPromise = client.connect();
   }
 
