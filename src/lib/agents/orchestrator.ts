@@ -29,74 +29,90 @@ export const Orchestrator = {
       stage: 'initialization',
     });
 
-    const geocoded = initial.geo && initial.siteConstraints ? initial : await this.geocode(applicationId, initial);
-    const applicationWithExtraction = await this.extract(applicationId, geocoded);
+    try {
+      const geocoded = initial.geo && initial.siteConstraints ? initial : await this.geocode(applicationId, initial);
+      const applicationWithExtraction = await this.extract(applicationId, geocoded);
 
-    await AuditLogsRepository.log(applicationId, 'pipeline', 'system', 'Launching specialist agents', {
-      agents: agentList.map((agent) => agent.type),
-    });
-
-    const agentInput = this.buildAgentInput(applicationWithExtraction);
-    const settled = await Promise.allSettled(
-      agentList.map(async (agent) => {
-        await AuditLogsRepository.log(applicationId, 'agent-started', `${agent.type}-agent`, 'Agent started', {
-          agentType: agent.type,
-        });
-
-        const result = agent.evaluate(agentInput);
-        const persisted = await AgentResultsRepository.upsert(result);
-
-        await AuditLogsRepository.log(applicationId, 'agent-completed', `${agent.type}-agent`, 'Agent completed', {
-          agentType: agent.type,
-          score: persisted.score,
-          decision: persisted.decision,
-          confidence: persisted.confidence,
-        });
-
-        return persisted;
-      })
-    );
-
-    const results = settled
-      .filter((entry): entry is PromiseFulfilledResult<AgentResult> => entry.status === 'fulfilled')
-      .map((entry) => entry.value);
-
-    const failedAgents = settled
-      .map((entry, index) => ({ entry, agent: agentList[index] }))
-      .filter((item): item is { entry: PromiseRejectedResult; agent: (typeof agentList)[number] } => item.entry.status === 'rejected');
-
-    for (const failed of failedAgents) {
-      await AuditLogsRepository.log(applicationId, 'agent-failed', `${failed.agent.type}-agent`, 'Agent failed', {
-        agentType: failed.agent.type,
-        error: failed.entry.reason instanceof Error ? failed.entry.reason.message : String(failed.entry.reason),
+      await AuditLogsRepository.log(applicationId, 'pipeline', 'system', 'Launching specialist agents', {
+        agents: agentList.map((agent) => agent.type),
       });
+
+      const agentInput = this.buildAgentInput(applicationWithExtraction);
+      const settled = await Promise.allSettled(
+        agentList.map(async (agent) => {
+          await AuditLogsRepository.log(applicationId, 'agent-started', `${agent.type}-agent`, 'Agent started', {
+            agentType: agent.type,
+          });
+
+          const result = agent.evaluate(agentInput);
+          const persisted = await AgentResultsRepository.upsert(result);
+
+          await AuditLogsRepository.log(applicationId, 'agent-completed', `${agent.type}-agent`, 'Agent completed', {
+            agentType: agent.type,
+            score: persisted.score,
+            decision: persisted.decision,
+            confidence: persisted.confidence,
+          });
+
+          return persisted;
+        })
+      );
+
+      const results = settled
+        .filter((entry): entry is PromiseFulfilledResult<AgentResult> => entry.status === 'fulfilled')
+        .map((entry) => entry.value);
+
+      const failedAgents = settled
+        .map((entry, index) => ({ entry, agent: agentList[index] }))
+        .filter((item): item is { entry: PromiseRejectedResult; agent: (typeof agentList)[number] } => item.entry.status === 'rejected');
+
+      for (const failed of failedAgents) {
+        const errorMsg = failed.entry.reason instanceof Error ? failed.entry.reason.message : String(failed.entry.reason);
+        await AuditLogsRepository.log(applicationId, 'agent-failed', `${failed.agent.type}-agent`, `Agent failed: ${errorMsg}`, {
+          agentType: failed.agent.type,
+          error: errorMsg,
+        });
+      }
+
+      await AuditLogsRepository.log(applicationId, 'aggregation-started', 'aggregation-agent', 'Aggregation started', {
+        resultCount: results.length,
+        failedCount: failedAgents.length,
+      });
+
+      const finalDecision = AggregationAgent.aggregate(applicationWithExtraction, results);
+      const storedDecision = await FinalDecisionsRepository.upsert(finalDecision);
+
+      const completedApplication = await ApplicationsRepository.update(applicationId, {
+        status: results.length > 0 ? 'completed' : 'failed',
+        updatedAt: new Date().toISOString(),
+      });
+
+      await AuditLogsRepository.log(applicationId, 'final-decision', 'aggregation-agent', 'Final decision created', {
+        recommendation: storedDecision.recommendation,
+        overallScore: storedDecision.overallScore,
+        overallConfidence: storedDecision.overallConfidence,
+        failedAgents: failedAgents.map((item) => item.agent.type),
+      });
+
+      return {
+        application: completedApplication || applicationWithExtraction,
+        results,
+        decision: storedDecision,
+      };
+    } catch (pipelineError: unknown) {
+      const errorMsg = pipelineError instanceof Error ? pipelineError.message : String(pipelineError);
+      
+      await ApplicationsRepository.update(applicationId, {
+        status: 'failed',
+        updatedAt: new Date().toISOString(),
+      });
+
+      await AuditLogsRepository.log(applicationId, 'pipeline-failed', 'system', `Pipeline failed: ${errorMsg}`, {
+        error: errorMsg,
+      });
+
+      throw pipelineError;
     }
-
-    await AuditLogsRepository.log(applicationId, 'aggregation-started', 'aggregation-agent', 'Aggregation started', {
-      resultCount: results.length,
-      failedCount: failedAgents.length,
-    });
-
-    const finalDecision = AggregationAgent.aggregate(applicationWithExtraction, results);
-    const storedDecision = await FinalDecisionsRepository.upsert(finalDecision);
-
-    const completedApplication = await ApplicationsRepository.update(applicationId, {
-      status: results.length > 0 ? 'completed' : 'failed',
-      updatedAt: new Date().toISOString(),
-    });
-
-    await AuditLogsRepository.log(applicationId, 'final-decision', 'aggregation-agent', 'Final decision created', {
-      recommendation: storedDecision.recommendation,
-      overallScore: storedDecision.overallScore,
-      overallConfidence: storedDecision.overallConfidence,
-      failedAgents: failedAgents.map((item) => item.agent.type),
-    });
-
-    return {
-      application: completedApplication || applicationWithExtraction,
-      results,
-      decision: storedDecision,
-    };
   },
 
   async geocode(applicationId: string, app: Application): Promise<Application> {

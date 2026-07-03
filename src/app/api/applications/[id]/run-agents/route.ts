@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { Orchestrator } from '@/lib/agents/orchestrator';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // Allow up to 60 seconds on Vercel
+
 
 export async function POST(
   _req: Request,

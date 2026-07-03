@@ -5,6 +5,8 @@ import { saveUploadedFiles } from '@/lib/storage/blob';
 import { classifyApplicationFields } from '@/lib/permissions/classify';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60; // Allow up to 60 seconds on Vercel
+
 
 async function readRequestBody(req: Request) {
   const contentType = req.headers.get('content-type') || '';

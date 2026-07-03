@@ -19,7 +19,7 @@ function stripNulls(obj: any): any {
     return obj.map(stripNulls);
   }
   if (obj && typeof obj === 'object' && obj.constructor === Object) {
-    const result: any = {};
+    const result: Record<string, unknown> = {};
     for (const key of Object.keys(obj)) {
       const val = obj[key];
       if (val !== null) {
