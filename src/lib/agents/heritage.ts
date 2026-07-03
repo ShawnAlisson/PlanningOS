@@ -6,7 +6,11 @@ export const HeritageAgent = {
 
   evaluate(input: AgentInputContext) {
     const data = input.extractedData || {};
-    const inConservation = !!data.conservationZone;
+    const constraints = input.siteConstraints;
+    const conservationAreas = constraints?.conservationAreas || [];
+    const listedBuildings = constraints?.listedBuildings || [];
+    const scheduledMonuments = constraints?.scheduledMonuments || [];
+    const inConservation = conservationAreas.length > 0 || !!data.conservationZone;
     const proposedHeight = data.proposedHeight ?? 3;
 
     let score = 98;
@@ -15,8 +19,36 @@ export const HeritageAgent = {
     const policyRefs: string[] = [UK_PLANNING_SOURCES.heritage.reference];
     const contradictions: string[] = [];
 
+    if (conservationAreas.length > 0) {
+      conservationAreas.forEach((area) => {
+        evidence.push(`Real record: within "${area.name}" conservation area (planning.data.gov.uk entity ${area.entityId}). Source: ${area.entityUrl}`);
+      });
+    }
+
+    let listedOrMonumentPenalty = 0;
+
+    if (listedBuildings.length > 0) {
+      listedBuildings.forEach((building) => {
+        evidence.push(
+          `Real record: listed building "${building.name}"${building.listedBuildingGrade ? ` (Grade ${building.listedBuildingGrade})` : ''} intersects the site point. Source: ${building.entityUrl}`
+        );
+      });
+      listedOrMonumentPenalty += 20;
+      policyRefs.push('Planning (Listed Buildings and Conservation Areas) Act 1990, section 66');
+    }
+
+    if (scheduledMonuments.length > 0) {
+      scheduledMonuments.forEach((monument) => {
+        evidence.push(`Real record: scheduled monument "${monument.name}" nearby. Source: ${monument.entityUrl}`);
+      });
+      listedOrMonumentPenalty += 25;
+      policyRefs.push('Ancient Monuments and Archaeological Areas Act 1979');
+    }
+
     if (inConservation) {
-      evidence.push('Property is located in a conservation area.');
+      if (conservationAreas.length === 0) {
+        evidence.push('Property is flagged as within a conservation area (manually confirmed - no matching planning.data.gov.uk record found for this point).');
+      }
       policyRefs.push('NPPF, chapter 16');
 
       if (proposedHeight > 3.2) {
@@ -33,6 +65,10 @@ export const HeritageAgent = {
     } else {
       evidence.push('No designated heritage asset or conservation boundary is indicated by the current input.');
     }
+
+    score = Math.max(5, score - listedOrMonumentPenalty);
+    if (listedOrMonumentPenalty > 0 && decision === 'approve') decision = 'review';
+    if (listedOrMonumentPenalty >= 25) decision = 'reject';
 
     const confidence = Math.max(50, Math.min(97, score));
 

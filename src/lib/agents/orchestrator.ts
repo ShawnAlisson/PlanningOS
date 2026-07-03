@@ -1,5 +1,6 @@
 import { ApplicationsRepository, AgentResultsRepository, FinalDecisionsRepository, AuditLogsRepository } from '../repositories';
 import { extractStructuredData } from '../services/extraction';
+import { resolveSiteContext } from '../services/geo';
 import { Application, AgentResult, FinalDecision } from '../types';
 import { AggregationAgent } from './aggregator';
 import { FloodRiskAgent } from './flood';
@@ -28,9 +29,8 @@ export const Orchestrator = {
       stage: 'initialization',
     });
 
-    const applicationWithExtraction = initial.extractedData
-      ? initial
-      : await this.extract(applicationId, initial);
+    const geocoded = initial.geo && initial.siteConstraints ? initial : await this.geocode(applicationId, initial);
+    const applicationWithExtraction = await this.extract(applicationId, geocoded);
 
     await AuditLogsRepository.log(applicationId, 'pipeline', 'system', 'Launching specialist agents', {
       agents: agentList.map((agent) => agent.type),
@@ -99,6 +99,32 @@ export const Orchestrator = {
     };
   },
 
+  async geocode(applicationId: string, app: Application): Promise<Application> {
+    await AuditLogsRepository.log(applicationId, 'geocoding', 'system', 'Resolving site location and UK planning constraints', {
+      provider: 'postcodes.io + planning.data.gov.uk',
+    });
+
+    const { geo, siteConstraints } = await resolveSiteContext(app.address);
+
+    const updated = await ApplicationsRepository.update(applicationId, {
+      geo: geo || undefined,
+      siteConstraints,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await AuditLogsRepository.log(
+      applicationId,
+      'geocoding',
+      'system',
+      geo
+        ? `Resolved to ${geo.postcode} (${geo.adminDistrict || 'unknown authority'}). Found ${siteConstraints?.totalConstraints ?? 0} real planning constraint record(s).`
+        : 'Could not resolve a UK postcode from the address; falling back to manual/heuristic site facts.',
+      { geo, totalConstraints: siteConstraints?.totalConstraints ?? 0 }
+    );
+
+    return updated || { ...app, geo: geo || undefined, siteConstraints };
+  },
+
   async extract(applicationId: string, app: Application): Promise<Application> {
     await AuditLogsRepository.log(applicationId, 'extraction', 'system', 'Structured extraction started');
 
@@ -110,6 +136,7 @@ export const Orchestrator = {
       sourceMode: app.sourceMode,
       sourceNote: app.sourceNote,
       extractedData: app.extractedData,
+      siteConstraints: app.siteConstraints,
     });
 
     const updated = await ApplicationsRepository.update(applicationId, {
@@ -132,6 +159,7 @@ export const Orchestrator = {
       address: app.address,
       description: app.description,
       extractedData: app.extractedData || {},
+      siteConstraints: app.siteConstraints,
     };
   },
 };

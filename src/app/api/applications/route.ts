@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ApplicationsRepository } from '@/lib/repositories';
 import { createApplicationSchema } from '@/lib/schemas';
+import { classifyApplicationFields } from '@/lib/permissions/classify';
 
 export async function GET() {
   try {
@@ -16,10 +17,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const parsed = createApplicationSchema.parse(body);
+    const fieldClassification = await classifyApplicationFields(parsed);
     const newApp = await ApplicationsRepository.create({
       ...parsed,
       status: 'pending',
       fileCount: parsed.files.length,
+      fieldClassification,
     });
 
     return NextResponse.json(newApp, { status: 201 });

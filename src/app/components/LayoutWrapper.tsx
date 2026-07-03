@@ -16,6 +16,7 @@ export default function LayoutWrapper({ children }: LayoutWrapperProps) {
 
   // Automatically close sidebar when navigation path changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: close drawer on route change
     setIsOpen(false);
   }, [pathname]);
 

@@ -7,6 +7,7 @@ export const FloodRiskAgent = {
   evaluate(input: AgentInputContext) {
     const data = input.extractedData || {};
     const floodZone = data.floodZone || 'Zone 1';
+    const floodEntities = input.siteConstraints?.floodRiskZones || [];
 
     let score = 100;
     let decision: 'approve' | 'reject' | 'review' = 'approve';
@@ -14,7 +15,14 @@ export const FloodRiskAgent = {
     const policyRefs: string[] = [UK_PLANNING_SOURCES.flood.reference];
     const contradictions: string[] = [];
 
-    evidence.push(`Flood zone input: ${floodZone}.`);
+    if (floodEntities.length > 0) {
+      evidence.push(`Real record: ${floodEntities.length} Environment Agency flood-risk-zone polygon(s) intersect this point (planning.data.gov.uk).`);
+      floodEntities.slice(0, 3).forEach((entity) => {
+        evidence.push(`${entity.floodRiskType || 'Flood zone'} — risk level ${entity.floodRiskLevel || '?'}. Source: ${entity.entityUrl}`);
+      });
+    } else {
+      evidence.push(`Flood zone: ${floodZone} (no flood-risk-zone record intersects this point in planning.data.gov.uk, treated as Zone 1).`);
+    }
 
     if (floodZone.startsWith('Zone 3')) {
       score = 28;

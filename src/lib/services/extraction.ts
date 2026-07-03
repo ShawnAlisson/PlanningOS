@@ -1,5 +1,7 @@
 import { extractedDataSchema, type ApplicationInput, type ExtractedData } from '../schemas';
 import { getStoredNameFromUrl, readStoredBlob } from '../storage/blob';
+import { isLlmConfigured, chatCompletion } from '../llm/client';
+import { derivedFloodZoneLabel, type SiteConstraints } from './planningData';
 
 function isImageFile(fileName: string, mimeType?: string) {
   return (
@@ -8,7 +10,7 @@ function isImageFile(fileName: string, mimeType?: string) {
   );
 }
 
-function deterministicExtract(input: ApplicationInput): ExtractedData {
+function deterministicExtractFromText(input: ApplicationInput): ExtractedData {
   const text = `${input.title} ${input.address} ${input.description}`.toLowerCase();
 
   const propertyType =
@@ -18,30 +20,30 @@ function deterministicExtract(input: ApplicationInput): ExtractedData {
       ? 'Detached'
       : text.includes('semi')
       ? 'Semi-detached'
+      : text.includes('flat') || text.includes('apartment')
+      ? 'Flat/Apartment'
       : 'Semi-detached';
 
   const extensionType =
     text.includes('loft') || text.includes('roof') ? 'loft' : text.includes('side') ? 'side' : 'rear';
 
-  const proposedHeight = text.includes('two storey') ? 5 : text.includes('single storey') ? 3.2 : 2.8;
+  const proposedHeight = text.includes('two storey') || text.includes('two-storey') ? 5 : text.includes('single storey') ? 3.2 : 2.8;
   const proposedVolume = text.includes('large') ? 48 : text.includes('dormer') ? 38 : 30;
 
-  return extractedDataSchema.parse({
+  return {
     propertyType,
     extensionType,
     proposedHeight,
     proposedVolume,
-    conservationZone: text.includes('conservation') || text.includes('heritage') || text.includes('listed'),
-    floodZone: text.includes('flood zone 3') || text.includes('zone 3') ? 'Zone 3' : text.includes('zone 2') ? 'Zone 2' : 'Zone 1',
-    highwaysProximity: text.includes('highway') || text.includes('road'),
+    highwaysProximity: text.includes('highway') || text.includes('main road'),
     neighbourImpactLevel: text.includes('overlooking') || text.includes('overbear') ? 'high' : text.includes('privacy') ? 'medium' : 'low',
-  });
+  };
 }
 
-async function llmExtract(input: ApplicationInput): Promise<ExtractedData> {
-  const apiKey = process.env.OPENAI_API_KEY || process.env.AZURE_OPENAI_API_KEY;
-  if (!apiKey) {
-    return deterministicExtract(input);
+/** Project-specific fields (what is being built) can only come from the description/drawings, never from the postcode. */
+async function llmExtractProjectDetails(input: ApplicationInput): Promise<Partial<ExtractedData>> {
+  if (!isLlmConfigured()) {
+    return {};
   }
 
   try {
@@ -57,61 +59,56 @@ async function llmExtract(input: ApplicationInput): Promise<ExtractedData> {
       }
     }
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Extract planning-relevant fields from the proposal and return JSON with propertyType, extensionType, proposedHeight, proposedVolume, conservationZone, floodZone, highwaysProximity, neighbourImpactLevel, boundaryDistance, originalHouseWidth.',
-          },
-          {
-            role: 'user',
-            content: imagePayload
-              ? [
-                  {
-                    type: 'text',
-                    text:
-                      'Inspect this planning drawing or site image. Return JSON with propertyType, extensionType, proposedHeight, proposedVolume, conservationZone, floodZone, highwaysProximity, neighbourImpactLevel, boundaryDistance, originalHouseWidth. If uncertain, keep fields conservative and explain via the textual fallback.',
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: imagePayload,
-                    },
-                  },
-                ]
-              : JSON.stringify(input),
-          },
-        ],
-      }),
-    });
+    const content = await chatCompletion(
+      [
+        {
+          role: 'system',
+          content:
+            'You analyse UK householder planning proposals. Extract ONLY project-specific fields from the text/drawing: propertyType, extensionType (loft|rear|side|new-build), proposedHeight (metres), proposedVolume (m3), neighbourImpactLevel (low|medium|high), boundaryDistance (metres), originalHouseWidth (metres). Do not guess flood zone, conservation area or highway data - that comes from official records, not from you. Return strict JSON with only the fields you are confident about.',
+        },
+        {
+          role: 'user',
+          content: imagePayload
+            ? [
+                { type: 'text', text: `Title: ${input.title}\nDescription: ${input.description}\n\nInspect the attached drawing/photo for massing, height, and materials cues.` },
+                { type: 'image_url', image_url: { url: imagePayload } },
+              ]
+            : `Title: ${input.title}\nAddress: ${input.address}\nDescription: ${input.description}`,
+        },
+      ],
+      { jsonMode: true }
+    );
 
-    if (!res.ok) {
-      throw new Error(`LLM extraction failed: ${res.status}`);
-    }
-
-    const json = await res.json();
-    const content = json.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error('LLM extraction returned no content');
-    }
-
-    return extractedDataSchema.parse(JSON.parse(content));
+    const parsed = JSON.parse(content);
+    return extractedDataSchema.partial().parse(parsed);
   } catch (error) {
-    console.warn('Falling back to deterministic extraction:', error);
-    return deterministicExtract(input);
+    console.warn('LLM project-detail extraction failed, falling back to heuristics:', error);
+    return {};
   }
 }
 
-export async function extractStructuredData(input: ApplicationInput): Promise<ExtractedData> {
-  return llmExtract(input);
+/** Real, authoritative constraint facts (planning.data.gov.uk) — used as the default, before text-derived guesses. */
+function siteConstraintsToFacts(constraints: SiteConstraints | undefined): Partial<ExtractedData> {
+  if (!constraints) return {};
+  return {
+    conservationZone: constraints.conservationAreas.length > 0,
+    floodZone: derivedFloodZoneLabel(constraints),
+  };
+}
+
+export async function extractStructuredData(
+  input: ApplicationInput & { siteConstraints?: SiteConstraints }
+): Promise<ExtractedData> {
+  const realFacts = siteConstraintsToFacts(input.siteConstraints);
+  const heuristic = deterministicExtractFromText(input);
+  const llmFields = await llmExtractProjectDetails(input);
+
+  // Precedence (lowest -> highest): real government data, text heuristics, LLM drawing/description
+  // analysis, then explicit manual overrides from the "advanced site facts" form.
+  return extractedDataSchema.parse({
+    ...realFacts,
+    ...heuristic,
+    ...llmFields,
+    ...(input.extractedData || {}),
+  });
 }

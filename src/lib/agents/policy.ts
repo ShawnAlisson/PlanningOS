@@ -13,6 +13,8 @@ export const PolicyAgent = {
     const isTerraced = propertyType.includes('terraced');
     const isSemiOrDetached = propertyType.includes('semi') || propertyType.includes('detached');
     const loftVolumeLimit = isTerraced ? 40 : isSemiOrDetached ? 50 : 40;
+    const article4Areas = input.siteConstraints?.article4Directions || [];
+    const greenBelt = input.siteConstraints?.greenBelt || [];
 
     let score = 95;
     let decision: 'approve' | 'reject' | 'review' = 'approve';
@@ -22,6 +24,23 @@ export const PolicyAgent = {
     evidence.push(`Extension type: ${extensionType}.`);
     evidence.push(`Proposed height: ${proposedHeight}m.`);
     evidence.push(`Proposed volume: ${proposedVolume}m³.`);
+
+    if (article4Areas.length > 0) {
+      article4Areas.forEach((area) => {
+        evidence.push(`Real record: Article 4 direction "${area.name}" removes some permitted development rights here. Source: ${area.entityUrl}`);
+      });
+      score -= 30;
+      policyRefs.push('Town and Country Planning Act 1990, section 4 (Article 4 direction)');
+      evidence.push('Because permitted development rights are withdrawn by this Article 4 direction, a full householder planning application is required rather than a PD notification.');
+    }
+
+    if (greenBelt.length > 0) {
+      greenBelt.forEach((area) => {
+        evidence.push(`Real record: site falls within the "${area.name}" Green Belt designation. Source: ${area.entityUrl}`);
+      });
+      score -= 15;
+      policyRefs.push('NPPF, chapter 13 (Green Belt)');
+    }
 
     if (extensionType === 'loft') {
       evidence.push(`Roof extension volume threshold used for this property type: ${loftVolumeLimit}m³.`);
@@ -57,6 +76,10 @@ export const PolicyAgent = {
       evidence.push('Non-standard extension or new build. Full planning review is required.');
       policyRefs.push('General householder development guidance');
     }
+
+    if (article4Areas.length > 0 && decision === 'approve') decision = 'review';
+    if (article4Areas.length > 0 && score < 60) decision = 'reject';
+    score = Math.max(5, score);
 
     const confidence = Math.max(45, Math.min(98, score));
 

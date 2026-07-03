@@ -1,5 +1,6 @@
 import { agentResultSchema } from '../schemas';
 import { AgentResult, AgentType, PlanningDecision } from '../types';
+import type { SiteConstraints } from '../services/planningData';
 
 export interface AgentInputContext {
   applicationId: string;
@@ -7,6 +8,7 @@ export interface AgentInputContext {
   address: string;
   description: string;
   extractedData: NonNullable<import('../types').Application['extractedData']>;
+  siteConstraints?: SiteConstraints;
 }
 
 export interface PlanningAgent {

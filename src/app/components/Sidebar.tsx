@@ -35,6 +35,7 @@ export default function Sidebar() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data fetch on mount
     void fetchApps();
     // Poll applications list periodically to update status if any are processing
     const interval = setInterval(() => {
@@ -43,6 +44,9 @@ export default function Sidebar() {
     return () => clearInterval(interval);
   }, []);
 
+  // Demo payloads intentionally omit conservationZone/floodZone/highwaysProximity:
+  // those are now derived live from planning.data.gov.uk for the real postcode below,
+  // instead of being hardcoded. Only project-specific facts (what is being built) are preset.
   const handlePreloadDemo = async (type: 'loft' | 'heritage' | 'flood') => {
     setPreloading(type);
     let payload = {};
@@ -53,7 +57,7 @@ export default function Sidebar() {
         address: '24 Kingswood Road, London SE22 8NG',
         description: 'Proposed hip-to-gable loft conversion with rear dormer window and two front rooflights. Intended under permitted development rules.',
         sourceMode: 'demo',
-        sourceNote: 'Demo record used to illustrate a typical low-risk householder submission.',
+        sourceNote: 'Demo record: real postcode, live-derived constraints. Only the project brief below is preset.',
         files: [
           { name: 'Architectural_Drawings_v2.pdf', url: '#', size: 1048576, type: 'application/pdf' },
           { name: 'Design_and_Access_Statement.pdf', url: '#', size: 512000, type: 'application/pdf' },
@@ -63,9 +67,6 @@ export default function Sidebar() {
           extensionType: 'loft',
           proposedHeight: 2.8,
           proposedVolume: 38,
-          conservationZone: false,
-          floodZone: 'Zone 1',
-          highwaysProximity: false,
           neighbourImpactLevel: 'low',
         },
       };
@@ -73,9 +74,9 @@ export default function Sidebar() {
       payload = {
         title: 'Conservation Area Rear Extension',
         address: '12 Regency Gate, Bath BA1 5HG',
-        description: 'Construction of a single-storey rear extension and timber sash windows replacement. Located within the Bath Conservation Area.',
+        description: 'Construction of a single-storey rear extension and timber sash windows replacement in central Bath.',
         sourceMode: 'demo',
-        sourceNote: 'Demo record showing how heritage constraints affect the recommendation.',
+        sourceNote: 'Demo record: real postcode, live-derived constraints. Bath city centre reliably intersects real conservation-area records.',
         files: [
           { name: 'Heritage_Impact_Statement.pdf', url: '#', size: 2048576, type: 'application/pdf' },
           { name: 'Elevation_Plans_v3.pdf', url: '#', size: 1536000, type: 'application/pdf' },
@@ -85,19 +86,16 @@ export default function Sidebar() {
           extensionType: 'rear',
           proposedHeight: 3.9,
           proposedVolume: 42,
-          conservationZone: true,
-          floodZone: 'Zone 1',
-          highwaysProximity: true,
           neighbourImpactLevel: 'medium',
         },
       };
     } else {
       payload = {
         title: 'Riverside Rebuild & Annex',
-        address: '8 Riverside Court, Maidenhead SL6 1AP',
-        description: 'Proposed detached residential annex with home office and garage. Located in proximity to the River Thames flood boundaries.',
+        address: '2 Severnside South, Bewdley DY12 2DZ',
+        description: 'Proposed detached residential annex with home office and garage in the Severnside flood corridor.',
         sourceMode: 'demo',
-        sourceNote: 'Demo record showing a higher-risk combination of flood and neighbour concerns.',
+        sourceNote: 'Demo record: real postcode, live-derived constraints. Bewdley reliably intersects real Environment Agency flood-risk-zone records.',
         files: [
           { name: 'Site_Plan_Map.pdf', url: '#', size: 3145728, type: 'application/pdf' },
           { name: 'Drainage_Strategy_v1.pdf', url: '#', size: 820000, type: 'application/pdf' },
@@ -107,9 +105,6 @@ export default function Sidebar() {
           extensionType: 'rear',
           proposedHeight: 4.2,
           proposedVolume: 55,
-          conservationZone: false,
-          floodZone: 'Zone 3',
-          highwaysProximity: false,
           neighbourImpactLevel: 'high',
         },
       };

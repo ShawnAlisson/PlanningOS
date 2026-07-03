@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ApplicationsRepository } from '@/lib/repositories';
 import { createApplicationSchema } from '@/lib/schemas';
 import { saveUploadedFiles } from '@/lib/storage/blob';
+import { classifyApplicationFields } from '@/lib/permissions/classify';
 
 export const runtime = 'nodejs';
 
@@ -30,10 +31,12 @@ export async function POST(req: Request) {
   try {
     const body = await readRequestBody(req);
     const parsed = createApplicationSchema.parse(body);
+    const fieldClassification = await classifyApplicationFields(parsed);
     const created = await ApplicationsRepository.create({
       ...parsed,
       status: 'pending',
       fileCount: parsed.files.length,
+      fieldClassification,
     });
 
     return NextResponse.json(created, { status: 201 });

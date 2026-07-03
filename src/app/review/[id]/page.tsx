@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Calendar, CheckCircle2, CircleAlert, CircleHelp, FileText, Shield, Sparkles, MapPin, Award } from 'lucide-react';
 import { AgentResult, Application, AuditLog, FinalDecision } from '@/lib/types';
+import SiteMap3D from '@/app/components/SiteMap3D';
+import AccessPanel from '@/app/components/AccessPanel';
+import ImpactPanel from '@/app/components/ImpactPanel';
 
 export default function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -70,6 +73,13 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
         <span className="text-xs font-semibold text-slate-400">Application Reference: #{application.id.slice(-6)}</span>
       </div>
 
+      <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wider">
+        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Real UK data · planning.data.gov.uk</span>
+        <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-violet-700">Permission-aware memory · Based AI track</span>
+        <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-700">Fetch.ai / ASI:One agent bridge</span>
+        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">Weeks → minutes · Conduct AI track</span>
+      </div>
+
       {/* Hero Recommendation Summary */}
       <section className="glass-panel p-6 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -88,6 +98,17 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
           </div>
         </div>
       </section>
+
+      {/* Real-data 3D site map */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Site in 3D — real map, real constraints</h2>
+          <span className="text-[10px] font-semibold text-slate-400">postcodes.io + planning.data.gov.uk + MapLibre/OpenFreeMap</span>
+        </div>
+        <SiteMap3D application={application} recommendation={decision.recommendation} />
+      </section>
+
+      <ImpactPanel agentCount={results.length} />
 
       {/* Highlights & Facts Grid */}
       <section className="grid gap-6 lg:grid-cols-3">
@@ -209,6 +230,8 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
 
         {/* Audit Pipeline Trail */}
         <div className="space-y-4">
+          <AccessPanel applicationId={application.id} />
+
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">Verifiable Audit Trail</h2>
           <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
             {audit.map((entry) => (

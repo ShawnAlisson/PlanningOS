@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, CircleCheckBig, CircleAlert, Clock3, RefreshCcw, MapPin, Calendar, Sparkles } from 'lucide-react';
+import { Loader2, CircleCheckBig, CircleAlert, Clock3, RefreshCcw, MapPin, Sparkles } from 'lucide-react';
 import { AgentResult, Application, AuditLog, AgentType } from '@/lib/types';
 
 type AgentState = 'pending' | 'running' | 'completed' | 'failed';
