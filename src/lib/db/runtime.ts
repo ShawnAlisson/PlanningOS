@@ -94,7 +94,8 @@ export const DbRuntime = {
           { $set: patch },
           { returnDocument: 'after' }
         );
-        const updated = result?.value;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updated = result && ('value' in result ? (result as any).value : result);
         return updated ? applicationSchema.parse({ ...updated, id: String(updated.id ?? id) }) : undefined;
       });
     }
