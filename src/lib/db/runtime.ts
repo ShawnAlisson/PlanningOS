@@ -9,6 +9,27 @@ import {
 import { Application, AgentResult, AuditLog, FinalDecision } from '../types';
 import { hasMongoConfig, getMongoDb } from './mongo';
 import { LocalStore, LocalDbShape } from './local';
+// Recursive utility to strip out database-returned "null" values, converting them
+// to "undefined". This prevents MongoDB's "null" representation of missing/unset fields
+// from crashing strict Zod schemas that define those fields as ".optional()".
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripNulls(obj: any): any {
+  if (obj === null) return undefined;
+  if (Array.isArray(obj)) {
+    return obj.map(stripNulls);
+  }
+  if (obj && typeof obj === 'object' && obj.constructor === Object) {
+    const result: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val !== null) {
+        result[key] = stripNulls(val);
+      }
+    }
+    return result;
+  }
+  return obj;
+}
 
 function sanitizeApplication(app: Partial<Application> & { id?: string }): Application {
   return applicationSchema.parse({
@@ -42,7 +63,7 @@ export const DbRuntime = {
         const docs = await db.collection('applications').find({}).sort({ createdAt: -1 }).toArray();
         const results: Application[] = [];
         for (const doc of docs) {
-          const parsed = applicationSchema.safeParse({ ...doc, id: String(doc.id ?? doc._id) });
+          const parsed = applicationSchema.safeParse(stripNulls({ ...doc, id: String(doc.id ?? doc._id) }));
           if (parsed.success) {
             results.push(parsed.data);
           } else {
@@ -61,7 +82,7 @@ export const DbRuntime = {
       return withMongo(async (db) => {
         const doc = await db.collection('applications').findOne({ id });
         if (!doc) return undefined;
-        const parsed = applicationSchema.safeParse({ ...doc, id: String(doc.id ?? id) });
+        const parsed = applicationSchema.safeParse(stripNulls({ ...doc, id: String(doc.id ?? id) }));
         if (parsed.success) {
           return parsed.data;
         } else {
@@ -86,7 +107,7 @@ export const DbRuntime = {
         if (!inserted) {
           throw new Error('Failed to load inserted application');
         }
-        return applicationSchema.parse({ ...inserted, id: sanitized.id });
+        return applicationSchema.parse(stripNulls({ ...inserted, id: sanitized.id }));
       });
     }
 
@@ -111,7 +132,7 @@ export const DbRuntime = {
         );
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updated = result && ('value' in result ? (result as any).value : result);
-        return updated ? applicationSchema.parse({ ...updated, id: String(updated.id ?? id) }) : undefined;
+        return updated ? applicationSchema.parse(stripNulls({ ...updated, id: String(updated.id ?? id) })) : undefined;
       });
     }
 
