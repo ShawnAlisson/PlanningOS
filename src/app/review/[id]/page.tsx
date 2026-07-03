@@ -21,7 +21,7 @@ import {
   Save, 
   RefreshCw
 } from 'lucide-react';
-import { AgentResult, Application, AuditLog, FinalDecision } from '@/lib/types';
+import { AgentResult, Application, AuditLog, FinalDecision, FileRecord } from '@/lib/types';
 import SiteMap3D from '@/app/components/SiteMap3D';
 import AccessPanel from '@/app/components/AccessPanel';
 import ImpactPanel from '@/app/components/ImpactPanel';
@@ -75,6 +75,14 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
         setOverrideRotationDeg(app.extractedData?.footprint?.rotationDeg ?? 0);
         setOverrideLatOffsetM(app.extractedData?.footprint?.latOffsetM ?? 0);
         setOverrideLngOffsetM(app.extractedData?.footprint?.lngOffsetM ?? 0);
+
+        const hasProposed = app.files.some((f: FileRecord) => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+        const hasExisting = app.files.some((f: FileRecord) => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+        if (hasProposed) {
+          setActiveImageRole('proposed');
+        } else if (hasExisting) {
+          setActiveImageRole('existing');
+        }
       }
 
       if (data.application?.status !== 'completed' && !data.decision) {
@@ -93,17 +101,29 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
-  useEffect(() => {
-    if (application) {
-      const hasProposed = application.files.some(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-      const hasExisting = application.files.some(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-      if (hasProposed) {
-        setActiveImageRole('proposed');
-      } else if (hasExisting) {
-        setActiveImageRole('existing');
-      }
-    }
+  const hasImages = useMemo(() => {
+    if (!application) return false;
+    return application.files.some(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name));
   }, [application]);
+
+  const hasExistingRoleFile = useMemo(() => {
+    if (!application) return false;
+    return application.files.some(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application]);
+
+  const hasProposedRoleFile = useMemo(() => {
+    if (!application) return false;
+    return application.files.some(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application]);
+
+  const imageFile = useMemo(() => {
+    if (!application) return null;
+    const existing = application.files.find(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+    const proposed = application.files.find(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+    if (activeImageRole === 'existing') return existing || null;
+    if (activeImageRole === 'proposed') return proposed || null;
+    return proposed || existing || application.files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name)) || null;
+  }, [application, activeImageRole]);
 
   if (loading || !application || !decision) {
     return (
@@ -210,30 +230,6 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
   const scoreOffset = circumference - (decision.overallScore / 100) * circumference;
-
-  const hasImages = useMemo(() => {
-    if (!application) return false;
-    return application.files.some(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-  }, [application]);
-
-  const hasExistingRoleFile = useMemo(() => {
-    if (!application) return false;
-    return application.files.some(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-  }, [application]);
-
-  const hasProposedRoleFile = useMemo(() => {
-    if (!application) return false;
-    return application.files.some(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-  }, [application]);
-
-  const imageFile = useMemo(() => {
-    if (!application) return null;
-    const existing = application.files.find(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-    const proposed = application.files.find(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
-    if (activeImageRole === 'existing') return existing || null;
-    if (activeImageRole === 'proposed') return proposed || null;
-    return proposed || existing || application.files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name)) || null;
-  }, [application, activeImageRole]);
 
   return (
     <div className="space-y-10 max-w-6xl mx-auto py-6 px-4">

@@ -27,6 +27,7 @@ export interface LocalDbShape {
 }
 
 const inMemoryDb = (): LocalDbShape => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = global as any;
   if (!g._inMemoryDb) {
     g._inMemoryDb = {
@@ -40,6 +41,7 @@ const inMemoryDb = (): LocalDbShape => {
 };
 
 function readLocalDb(): LocalDbShape {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = global as any;
   if (g._inMemoryDb) {
     return g._inMemoryDb;
@@ -71,6 +73,7 @@ function readLocalDb(): LocalDbShape {
 }
 
 function writeLocalDb(data: LocalDbShape) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = global as any;
   g._inMemoryDb = data;
 

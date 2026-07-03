@@ -22,6 +22,7 @@ function sanitizeFilename(name: string) {
 
 // Global in-memory cache to guarantee uploads work under serverless functions (Vercel fallback)
 const inMemoryBlobs = () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const g = global as any;
   if (!g._inMemoryBlobs) {
     g._inMemoryBlobs = new Map<string, Buffer>();
@@ -79,7 +80,7 @@ export async function saveUploadedFiles(
     if (isMongo) {
       try {
         const db = await getMongoDb();
-        const collection = db.collection('blobs');
+        const collection = db.collection<{ _id: string; data?: string }>('blobs');
         const base64Data = buffer.toString('base64');
         
         await collection.updateOne(
@@ -129,7 +130,7 @@ export async function readStoredBlob(storedName: string): Promise<{ filePath: st
   if (hasMongoConfig()) {
     try {
       const db = await getMongoDb();
-      const collection = db.collection('blobs');
+      const collection = db.collection<{ _id: string; data?: string }>('blobs');
       const doc = await collection.findOne({ _id: storedName });
       if (doc && doc.data) {
         const buffer = Buffer.from(doc.data, 'base64');
