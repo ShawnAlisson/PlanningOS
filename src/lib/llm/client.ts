@@ -48,15 +48,10 @@ export function isLlmConfigured(): boolean {
   return getLlmConfig() !== null;
 }
 
-export async function chatCompletion(
-  messages: ChatMessage[],
-  options: { jsonMode?: boolean; temperature?: number; model?: string } = {}
+async function postChatCompletion(
+  config: LlmConfig,
+  body: Record<string, unknown>
 ): Promise<string> {
-  const config = getLlmConfig();
-  if (!config) {
-    throw new Error('No LLM configured. Set LLM_API_KEY (or OPENAI_API_KEY / OPENROUTER_API_KEY) and optionally LLM_BASE_URL / LLM_MODEL.');
-  }
-
   const res = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -69,12 +64,7 @@ export async function chatCompletion(
           }
         : {}),
     },
-    body: JSON.stringify({
-      model: options.model || config.model,
-      temperature: options.temperature ?? 0,
-      ...(options.jsonMode ? { response_format: { type: 'json_object' } } : {}),
-      messages,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -86,4 +76,37 @@ export async function chatCompletion(
   const content = json.choices?.[0]?.message?.content;
   if (!content) throw new Error('LLM response contained no content');
   return content;
+}
+
+export async function chatCompletion(
+  messages: ChatMessage[],
+  options: { jsonMode?: boolean; temperature?: number; model?: string } = {}
+): Promise<string> {
+  const config = getLlmConfig();
+  if (!config) {
+    throw new Error('No LLM configured. Set LLM_API_KEY (or OPENAI_API_KEY / OPENROUTER_API_KEY) and optionally LLM_BASE_URL / LLM_MODEL.');
+  }
+
+  const baseBody = {
+    model: options.model || config.model,
+    temperature: options.temperature ?? 0,
+    messages,
+  };
+
+  if (!options.jsonMode) {
+    return postChatCompletion(config, baseBody);
+  }
+
+  try {
+    return await postChatCompletion(config, { ...baseBody, response_format: { type: 'json_object' } });
+  } catch (error) {
+    // Some OpenAI-compatible local servers (e.g. LM Studio) reject the older
+    // 'json_object' response_format shorthand with "must be 'json_schema' or
+    // 'text'". Retry in plain-text mode - the system prompt already asks for
+    // strict JSON, most models still comply, and callers already tolerate a
+    // JSON.parse failure by falling back to heuristics.
+    const message = error instanceof Error ? error.message : '';
+    if (!/response_format/i.test(message)) throw error;
+    return postChatCompletion(config, baseBody);
+  }
 }

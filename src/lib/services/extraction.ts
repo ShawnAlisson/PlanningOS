@@ -16,6 +16,18 @@ function isDxfFile(fileName: string) {
 }
 
 /**
+ * Local models that don't support a strict json_object response_format (see
+ * src/lib/llm/client.ts fallback) often wrap their JSON in ```json fences or
+ * add a sentence before/after it. Strip that so JSON.parse still succeeds.
+ */
+function extractJsonPayload(content: string): string {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced) return fenced[1].trim();
+  const braceMatch = content.match(/\{[\s\S]*\}/);
+  return braceMatch ? braceMatch[0] : content;
+}
+
+/**
  * Real footprint from an uploaded DXF drawing. Binary .dwg files cannot be
  * parsed by any reliable open-source library, so they are stored as evidence
  * only - only .dxf (the open, text-based CAD interchange format that AutoCAD,
@@ -105,8 +117,14 @@ async function llmExtractProjectDetails(input: ApplicationInput): Promise<Partia
       { jsonMode: true }
     );
 
-    const parsed = JSON.parse(content);
-    return extractedDataSchema.partial().parse(parsed);
+    const parsed = JSON.parse(extractJsonPayload(content));
+    // Some local models emit `null` for fields they're unsure about instead of
+    // omitting the key entirely. Treat null the same as "not provided" so it
+    // doesn't fail schema validation or override a real value in the merge.
+    const withoutNulls = Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => value !== null)
+    );
+    return extractedDataSchema.partial().parse(withoutNulls);
   } catch (error) {
     console.warn('LLM project-detail extraction failed, falling back to heuristics:', error);
     return {};
