@@ -10,7 +10,12 @@ export interface MassingInput {
   proposedHeight?: number;
   proposedVolume?: number;
   /** Real width/depth (metres) parsed from an uploaded DXF drawing - see src/lib/services/dxf.ts. */
-  footprint?: { widthM: number; depthM: number };
+  footprint?: { 
+    widthM: number; 
+    depthM: number;
+    latOffsetM?: number;
+    lngOffsetM?: number;
+  };
 }
 
 const METRES_PER_DEGREE_LAT = 111320;
@@ -38,10 +43,18 @@ export function buildMassingFootprint(input: MassingInput) {
   const dLat = depthM / METRES_PER_DEGREE_LAT / 2;
   const dLng = widthM / metresPerDegreeLng / 2;
 
-  // Offset slightly "south-east" of the site point so it reads as an addition
-  // to the existing building rather than sitting exactly on the postcode centroid.
-  const offsetLat = -dLat * 0.6;
-  const offsetLng = dLng * 0.6;
+  // Offset calculation: if manual offsets are provided, use them. Otherwise,
+  // shift slightly "south-east" of the site point as a default schematic helper.
+  const hasManualOffset = input.footprint?.latOffsetM !== undefined || input.footprint?.lngOffsetM !== undefined;
+  
+  const offsetLat = hasManualOffset
+    ? (input.footprint?.latOffsetM || 0) / METRES_PER_DEGREE_LAT
+    : -dLat * 0.6;
+    
+  const offsetLng = hasManualOffset
+    ? (input.footprint?.lngOffsetM || 0) / metresPerDegreeLng
+    : dLng * 0.6;
+
   const cLat = input.lat + offsetLat;
   const cLng = input.lng + offsetLng;
 

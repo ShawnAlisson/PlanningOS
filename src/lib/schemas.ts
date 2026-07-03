@@ -19,12 +19,14 @@ const legacyDecisionNormalizer = z.preprocess((value) => {
 }, planningDecisionSchema);
 
 export const dxfFootprintSchema = z.object({
-  source: z.literal('dxf'),
+  source: z.string(),
   widthM: z.number().positive(),
   depthM: z.number().positive(),
   areaM2: z.number().positive(),
   vertexCount: z.number().int().nonnegative(),
   unitAssumption: z.string(),
+  latOffsetM: z.number().optional(),
+  lngOffsetM: z.number().optional(),
 });
 
 export const extractedDataSchema = z.object({

@@ -24,9 +24,22 @@ const CONSTRAINT_STYLES: { key: keyof NonNullable<Application['siteConstraints']
 interface SiteMap3DProps {
   application: Application;
   recommendation?: PlanningDecision;
+  overrideHeight?: number;
+  overrideWidth?: number;
+  overrideDepth?: number;
+  overrideLatOffsetM?: number;
+  overrideLngOffsetM?: number;
 }
 
-export default function SiteMap3D({ application, recommendation }: SiteMap3DProps) {
+export default function SiteMap3D({
+  application,
+  recommendation,
+  overrideHeight,
+  overrideWidth,
+  overrideDepth,
+  overrideLatOffsetM,
+  overrideLngOffsetM,
+}: SiteMap3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
@@ -34,6 +47,14 @@ export default function SiteMap3D({ application, recommendation }: SiteMap3DProp
 
   const geo = application.geo;
   const footprint = application.extractedData?.footprint;
+
+  // Use override values if provided, falling back to application metadata or standard defaults
+  const activeHeight = overrideHeight !== undefined ? overrideHeight : (application.extractedData?.proposedHeight ?? 3);
+  const activeVolume = application.extractedData?.proposedVolume;
+  const activeWidthM = overrideWidth !== undefined ? overrideWidth : (footprint?.widthM ?? 10);
+  const activeDepthM = overrideDepth !== undefined ? overrideDepth : (footprint?.depthM ?? 10);
+  const activeLatOffsetM = overrideLatOffsetM !== undefined ? overrideLatOffsetM : footprint?.latOffsetM;
+  const activeLngOffsetM = overrideLngOffsetM !== undefined ? overrideLngOffsetM : footprint?.lngOffsetM;
 
   useEffect(() => {
     if (!geo || !containerRef.current) return;
@@ -94,9 +115,14 @@ export default function SiteMap3D({ application, recommendation }: SiteMap3DProp
       const massing = buildMassingFootprint({
         lat: geo.lat,
         lng: geo.lng,
-        proposedHeight: application.extractedData?.proposedHeight,
-        proposedVolume: application.extractedData?.proposedVolume,
-        footprint: footprint ? { widthM: footprint.widthM, depthM: footprint.depthM } : undefined,
+        proposedHeight: activeHeight,
+        proposedVolume: activeVolume,
+        footprint: {
+          widthM: activeWidthM,
+          depthM: activeDepthM,
+          latOffsetM: activeLatOffsetM,
+          lngOffsetM: activeLngOffsetM,
+        },
       });
 
       map.addSource('proposed-massing', { type: 'geojson', data: massing });
@@ -120,6 +146,30 @@ export default function SiteMap3D({ application, recommendation }: SiteMap3DProp
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo?.lat, geo?.lng]);
+
+  // Real-time reactive updates of the 3D massing source data (60fps, no map reloads)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !geo) return;
+
+    const source = map.getSource('proposed-massing') as maplibregl.GeoJSONSource | undefined;
+    if (!source) return;
+
+    const massing = buildMassingFootprint({
+      lat: geo.lat,
+      lng: geo.lng,
+      proposedHeight: activeHeight,
+      proposedVolume: activeVolume,
+      footprint: {
+        widthM: activeWidthM,
+        depthM: activeDepthM,
+        latOffsetM: activeLatOffsetM,
+        lngOffsetM: activeLngOffsetM,
+      },
+    });
+
+    source.setData(massing);
+  }, [ready, geo, activeHeight, activeVolume, activeWidthM, activeDepthM, activeLatOffsetM, activeLngOffsetM]);
 
   if (!geo) {
     return (
