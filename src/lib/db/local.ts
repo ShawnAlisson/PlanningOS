@@ -26,36 +26,67 @@ export interface LocalDbShape {
   auditLogs: AuditLog[];
 }
 
-function readLocalDb(): LocalDbShape {
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-  }
-
-  if (!fs.existsSync(DB_FILE)) {
-    const initial: LocalDbShape = {
+const inMemoryDb = (): LocalDbShape => {
+  const g = global as any;
+  if (!g._inMemoryDb) {
+    g._inMemoryDb = {
       applications: [],
       agentResults: [],
       finalDecisions: [],
       auditLogs: [],
     };
-    fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf8');
-    return initial;
+  }
+  return g._inMemoryDb;
+};
+
+function readLocalDb(): LocalDbShape {
+  const g = global as any;
+  if (g._inMemoryDb) {
+    return g._inMemoryDb;
   }
 
-  const raw = fs.readFileSync(DB_FILE, 'utf8');
-  const parsed = JSON.parse(raw);
-  return localSchema.parse(parsed);
+  try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+
+    if (!fs.existsSync(DB_FILE)) {
+      const initial: LocalDbShape = {
+        applications: [],
+        agentResults: [],
+        finalDecisions: [],
+        auditLogs: [],
+      };
+      fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2), 'utf8');
+      return initial;
+    }
+
+    const raw = fs.readFileSync(DB_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return localSchema.parse(parsed);
+  } catch (err) {
+    console.warn('Local file DB read failed, using global in-memory DB:', err);
+    return inMemoryDb();
+  }
 }
 
 function writeLocalDb(data: LocalDbShape) {
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
-  }
+  const g = global as any;
+  g._inMemoryDb = data;
 
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+  try {
+    if (!fs.existsSync(DB_DIR)) {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    }
+
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Local file DB write failed, fallback to in-memory DB:', err);
+  }
 }
 
 export const LocalStore = {
   read: readLocalDb,
   write: writeLocalDb,
 };
+

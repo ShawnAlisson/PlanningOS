@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -50,6 +50,9 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const [overrideLngOffsetM, setOverrideLngOffsetM] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [isMassingModalOpen, setIsMassingModalOpen] = useState(false);
+  const [showSketchReference, setShowSketchReference] = useState(true);
+  const [activeImageRole, setActiveImageRole] = useState<'existing' | 'proposed'>('proposed');
 
   const fetchApplicationDetails = async () => {
     // Defer setLoading(true) to a microtask to avoid synchronous setState inside useEffect
@@ -89,6 +92,18 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     void fetchApplicationDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
+
+  useEffect(() => {
+    if (application) {
+      const hasProposed = application.files.some(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+      const hasExisting = application.files.some(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+      if (hasProposed) {
+        setActiveImageRole('proposed');
+      } else if (hasExisting) {
+        setActiveImageRole('existing');
+      }
+    }
+  }, [application]);
 
   if (loading || !application || !decision) {
     return (
@@ -195,6 +210,30 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
   const scoreOffset = circumference - (decision.overallScore / 100) * circumference;
+
+  const hasImages = useMemo(() => {
+    if (!application) return false;
+    return application.files.some(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application]);
+
+  const hasExistingRoleFile = useMemo(() => {
+    if (!application) return false;
+    return application.files.some(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application]);
+
+  const hasProposedRoleFile = useMemo(() => {
+    if (!application) return false;
+    return application.files.some(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application]);
+
+  const imageFile = useMemo(() => {
+    if (!application) return null;
+    const existing = application.files.find(f => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+    const proposed = application.files.find(f => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+    if (activeImageRole === 'existing') return existing || null;
+    if (activeImageRole === 'proposed') return proposed || null;
+    return proposed || existing || application.files.find(f => /\.(png|jpg|jpeg|webp)$/i.test(f.name)) || null;
+  }, [application, activeImageRole]);
 
   return (
     <div className="space-y-10 max-w-6xl mx-auto py-6 px-4">
@@ -336,25 +375,41 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
 
       </div>
 
-      {/* Interactive 3D Model Editor and Map Container */}
+      {/* Interactive Proposal and Map Container */}
       <section className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              Interactive 3D Proposal Editor &amp; Site Map
+              Interactive Proposal &amp; Site Map
             </h2>
             <p className="text-[10px] text-slate-400 font-bold mt-0.5">Drag sliders to adjust height, sizing, and position offsets on the live map</p>
           </div>
-          <span className="text-[10px] font-black text-slate-400 bg-slate-100 rounded border border-slate-200 px-2.5 py-1 uppercase tracking-widest">
-            60FPS LIVE PREVIEW
-          </span>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-[10px] font-black text-slate-400 bg-slate-100 rounded border border-slate-200 px-2.5 py-2 uppercase tracking-widest">
+              60FPS LIVE PREVIEW
+            </span>
+            {hasImages && !showSketchReference && (
+              <button 
+                onClick={() => setShowSketchReference(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3 py-2 text-[10px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+              >
+                <FileText className="h-3.5 w-3.5 text-violet-600 animate-pulse" /> Show Sketch Plan
+              </button>
+            )}
+            <button 
+              onClick={() => setIsMassingModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-[10px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Adjust Sizing &amp; Location
+            </button>
+          </div>
         </div>
 
-        {/* Map & Controller Grid Layout */}
+        {/* Map & Drawing Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Map View Container (2/3 width) */}
-          <div className="lg:col-span-2 relative">
+          {/* Map View Container */}
+          <div className={`${showSketchReference && hasImages ? 'lg:col-span-2' : 'lg:col-span-3'} relative transition-all duration-500`}>
             <SiteMap3D 
               application={application} 
               recommendation={decision.recommendation}
@@ -367,22 +422,119 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
             />
           </div>
 
-          {/* Sizing & Location Editor drawer (1/3 width) */}
-          <div className="glass-panel p-5 bg-gradient-to-b from-white/90 to-slate-50/50 flex flex-col justify-between border border-zinc-200/60 shadow-md">
-            <div className="space-y-5">
+          {/* Uploaded Drawing Reference Panel */}
+          {showSketchReference && hasImages && (
+            <div className="lg:col-span-1 glass-panel p-5 bg-gradient-to-b from-white/90 to-slate-50/50 flex flex-col justify-between border border-zinc-200/60 shadow-md h-[480px] lg:h-auto min-h-[480px] animate-fade-in transition-all duration-500">
+              <div className="space-y-4 flex flex-col h-full">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 shrink-0">
+                  <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-violet-600" /> Uploaded Drawings
+                  </span>
+                  <button 
+                    onClick={() => setShowSketchReference(false)}
+                    className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                    title="Hide Sketch panel"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Sliding Tabs */}
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/40 shrink-0">
+                  <button
+                    onClick={() => setActiveImageRole('existing')}
+                    className={`flex-1 text-center py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer ${
+                      activeImageRole === 'existing'
+                        ? 'bg-white text-slate-800 shadow-sm border border-slate-200/20'
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${hasExistingRoleFile ? 'bg-slate-500' : 'bg-slate-300'}`} />
+                    Before (Existing)
+                  </button>
+                  <button
+                    onClick={() => setActiveImageRole('proposed')}
+                    className={`flex-1 text-center py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer ${
+                      activeImageRole === 'proposed'
+                        ? 'bg-white text-slate-800 shadow-sm border border-slate-200/20'
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${hasProposedRoleFile ? 'bg-violet-500 animate-pulse' : 'bg-slate-300'}`} />
+                    After (Proposed)
+                  </button>
+                </div>
+
+                {/* Image Body */}
+                <div className="relative flex-1 rounded-xl border border-slate-200/80 bg-zinc-900/5 overflow-hidden flex items-center justify-center p-2 group">
+                  {imageFile ? (
+                    <>
+                      <img 
+                        src={imageFile.url} 
+                        alt={imageFile.name}
+                        className="max-h-full max-w-full object-contain rounded-lg shadow-sm group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {/* Glass tag */}
+                      <div className="absolute bottom-2.5 left-2.5 rounded-full bg-slate-900/70 backdrop-blur-md px-3 py-1 text-[9px] font-bold text-white uppercase tracking-wider max-w-[90%] truncate">
+                        {imageFile.name}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-center p-6 space-y-3">
+                      <div className="p-3 bg-slate-100 rounded-full text-slate-400">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-700 block">No {activeImageRole} drawing</span>
+                        <span className="text-[10px] text-slate-400 block mt-1 leading-relaxed max-w-[180px] mx-auto">
+                          You did not upload an image designated as the {activeImageRole === 'existing' ? 'Before (Existing)' : 'After (Proposed)'} plan.
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Info Footer */}
+                <div className="bg-slate-100/70 rounded-xl border border-slate-200/50 p-3 text-[10px] space-y-1 text-slate-500 shrink-0">
+                  <p className="font-bold">This drawing is processed by our extraction agent to align with the 3D block model shown on the map.</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5 font-medium">Use the &quot;Adjust Massing&quot; modal to manually refine coordinates and sizing.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* Adjust Massing Modal */}
+        {isMassingModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+            <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
               
-              {/* Controller Header */}
-              <div className="flex items-center justify-between border-b border-slate-200/50 pb-3">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                  <SlidersHorizontal className="w-4 h-4 text-violet-600" /> Adjust Massing
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-violet-600" /> Adjust Massing &amp; Location
                 </span>
-                <button 
-                  onClick={handleResetToDxf}
-                  className="inline-flex items-center gap-1 text-[9px] font-extrabold text-slate-400 hover:text-slate-700 bg-white border border-slate-200 rounded px-2 py-1 uppercase tracking-wider transition-all"
-                  title="Reset to original parsed files data"
-                >
-                  <RefreshCw className="w-2.5 h-2.5" /> Reset
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleResetToDxf}
+                    className="inline-flex items-center gap-1 text-[9px] font-extrabold text-slate-400 hover:text-slate-700 bg-white border border-slate-200 rounded px-2 py-1 uppercase tracking-wider transition-all"
+                    title="Reset to original parsed files data"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" /> Reset
+                  </button>
+                  <button 
+                    onClick={() => setIsMassingModalOpen(false)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Slider Controls */}
@@ -503,7 +655,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                   </span>
                 </div>
 
-                {/* East-West Offset Slider */}
+                {/* East-West Shift */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     <span>East-West Shift</span>
@@ -531,7 +683,7 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                   />
                 </div>
 
-                {/* North-South Offset Slider */}
+                {/* North-South Shift */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     <span>North-South Shift</span>
@@ -585,39 +737,37 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
                 </div>
               </div>
 
-            </div>
-
-            {/* Save Button & Actions */}
-            <div className="pt-4 border-t border-slate-200/50 mt-4 space-y-3">
-              {saveSuccess && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-[10px] font-bold text-emerald-800 flex items-start gap-1.5 animate-pulse">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>{saveSuccess}</span>
-                </div>
-              )}
-              
-              <button
-                onClick={handleSaveGeometry}
-                disabled={isSaving}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl py-3 text-xs font-bold transition-all shadow-lg shadow-violet-600/10 hover:shadow-violet-600/20 disabled:opacity-50"
-              >
-                {isSaving ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Saving Geometry...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    <span>Save Sizing &amp; Location</span>
-                  </>
+              {/* Save Button & Actions */}
+              <div className="pt-4 border-t border-slate-200/50 mt-2 space-y-3">
+                {saveSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-[10px] font-bold text-emerald-800 flex items-start gap-1.5 animate-pulse">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>{saveSuccess}</span>
+                  </div>
                 )}
-              </button>
+                
+                <button
+                  onClick={handleSaveGeometry}
+                  disabled={isSaving}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl py-3 text-xs font-bold transition-all shadow-lg shadow-violet-600/10 hover:shadow-violet-600/20 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Saving Geometry...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save Sizing &amp; Location</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
             </div>
-
           </div>
-
-        </div>
+        )}
       </section>
 
       <StructuralPlan3D

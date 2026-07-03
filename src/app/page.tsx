@@ -77,6 +77,7 @@ export default function Dashboard() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [files, setFiles] = useState<File[]>([]);
+  const [fileRoles, setFileRoles] = useState<Record<string, 'existing' | 'proposed' | 'drawing' | 'other'>>({});
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [neighbourImpactLevel, setNeighbourImpactLevel] = useState<'low' | 'medium' | 'high'>('low');
   const [submitting, setSubmitting] = useState(false);
@@ -167,9 +168,30 @@ export default function Dashboard() {
     return line ? `${line}${district}, ${selectedPostcode.postcode}` : `${selectedPostcode.postcode}${district}`;
   }, [selectedPostcode, houseLine]);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUploadWithRole = (e: React.ChangeEvent<HTMLInputElement>, role: 'existing' | 'proposed' | 'drawing') => {
     if (!e.target.files) return;
-    setFiles((prev) => [...prev, ...Array.from(e.target.files ?? [])]);
+    const uploadedFiles = Array.from(e.target.files);
+    
+    setFiles((prev) => {
+      const next = [...prev];
+      uploadedFiles.forEach((file) => {
+        const index = next.findIndex((f) => f.name === file.name);
+        if (index !== -1) {
+          next[index] = file;
+        } else {
+          next.push(file);
+        }
+      });
+      return next;
+    });
+
+    setFileRoles((prev) => {
+      const next = { ...prev };
+      uploadedFiles.forEach((file) => {
+        next[file.name] = role;
+      });
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -202,6 +224,7 @@ export default function Dashboard() {
           geo,
           siteConstraints: constraints?.constraints,
           extractedData: advancedOpen ? { neighbourImpactLevel } : undefined,
+          filesMetadata: fileRoles,
         })
       );
 
@@ -398,34 +421,157 @@ export default function Dashboard() {
 
           {wizardStep === 3 && (
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Upload project plans</label>
-                <div className="relative border border-dashed border-zinc-200 hover:border-violet-300 bg-zinc-50 hover:bg-violet-50/20 rounded-xl p-6 text-center cursor-pointer transition-all">
-                  <input
-                    type="file"
-                    multiple
-                    accept=".dxf,.dwg,.pdf,.png,.jpg,.jpeg"
-                    onChange={handleFileUpload}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <Upload className="w-6 h-6 text-slate-400 mx-auto mb-2" />
-                  <span className="block text-xs font-semibold text-slate-700">Drag and drop plans here or browse</span>
-                  <span className="block text-[10px] text-slate-400 mt-1">
-                    Accepts DXF, PDF, PNG, JPG, DWG. Upload a <strong>.dxf</strong> export of your drawing for a real, to-scale 3D
-                    footprint on the site map — binary .dwg is stored as evidence but can&apos;t be geometrically parsed, so it falls
-                    back to a schematic block sized from your description. If an LLM key is set, images are inspected directly.
-                  </span>
+              <div className="space-y-4">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400">Upload Project Evidence</label>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Slot 1: Existing Plan */}
+                  <div className="border border-dashed border-zinc-200 hover:border-violet-300 bg-zinc-50 hover:bg-violet-50/20 rounded-xl p-4 text-center relative transition-all flex flex-col justify-between min-h-[180px] group">
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={(e) => handleFileUploadWithRole(e, 'existing')}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="space-y-2 mt-2">
+                      <Upload className="w-5 h-5 text-slate-400 mx-auto group-hover:text-violet-500 transition-colors" />
+                      <span className="block text-xs font-bold text-slate-700">Existing Plan (Before)</span>
+                      <span className="block text-[10px] text-slate-400 leading-normal">
+                        Survey floorplan, photo or drawing of the house <strong>before</strong> extension.
+                      </span>
+                    </div>
+                    {/* Status indicator */}
+                    <div className="mt-3 shrink-0">
+                      {files.filter(f => fileRoles[f.name] === 'existing').length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                          <Check className="w-2.5 h-2.5" /> Added ({files.filter(f => fileRoles[f.name] === 'existing').length})
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 border border-slate-200/60 px-2.5 py-0.5 rounded-full">
+                          Required for Before view
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Slot 2: Proposed Plan */}
+                  <div className="border border-dashed border-zinc-200 hover:border-violet-300 bg-zinc-50 hover:bg-violet-50/20 rounded-xl p-4 text-center relative transition-all flex flex-col justify-between min-h-[180px] group">
+                    <input
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={(e) => handleFileUploadWithRole(e, 'proposed')}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="space-y-2 mt-2">
+                      <Upload className="w-5 h-5 text-slate-400 mx-auto group-hover:text-violet-500 transition-colors" />
+                      <span className="block text-xs font-bold text-slate-700">Proposed Plan (After)</span>
+                      <span className="block text-[10px] text-slate-400 leading-normal">
+                        Proposed extension floorplan, layout sketch or drawing <strong>after</strong> extension.
+                      </span>
+                    </div>
+                    {/* Status indicator */}
+                    <div className="mt-3 shrink-0">
+                      {files.filter(f => fileRoles[f.name] === 'proposed').length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                          <Check className="w-2.5 h-2.5" /> Added ({files.filter(f => fileRoles[f.name] === 'proposed').length})
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 border border-slate-200/60 px-2.5 py-0.5 rounded-full">
+                          Required for After view
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Slot 3: CAD DXF Drawing */}
+                  <div className="border border-dashed border-zinc-200 hover:border-violet-300 bg-zinc-50 hover:bg-violet-50/20 rounded-xl p-4 text-center relative transition-all flex flex-col justify-between min-h-[180px] group">
+                    <input
+                      type="file"
+                      accept=".dxf"
+                      onChange={(e) => handleFileUploadWithRole(e, 'drawing')}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="space-y-2 mt-2">
+                      <Upload className="w-5 h-5 text-slate-400 mx-auto group-hover:text-violet-500 transition-colors" />
+                      <span className="block text-xs font-bold text-slate-700">CAD DXF Drawing (Optional)</span>
+                      <span className="block text-[10px] text-slate-400 leading-normal">
+                        Upload <strong>.dxf</strong> vectors to render high-confidence precise 3D floor plan layout.
+                      </span>
+                    </div>
+                    {/* Status indicator */}
+                    <div className="mt-3 shrink-0">
+                      {files.filter(f => fileRoles[f.name] === 'drawing').length > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                          <Check className="w-2.5 h-2.5" /> Added ({files.filter(f => fileRoles[f.name] === 'drawing').length})
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold text-slate-400 bg-slate-100 border border-slate-200/60 px-2.5 py-0.5 rounded-full">
+                          Optional
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
               {files.length > 0 && (
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                  {files.map((file, i) => (
-                    <div key={i} className="flex items-center justify-between bg-zinc-50 px-3 py-2 rounded-lg border border-zinc-200 text-xs">
-                      <span className="text-slate-700 font-medium truncate max-w-[80%]">{file.name}</span>
-                      <span className="text-[10px] text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Uploaded files ({files.length})</p>
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                    {files.map((file, i) => {
+                      const role = fileRoles[file.name] || 'other';
+                      const roleBadge = 
+                        role === 'existing' 
+                          ? 'bg-slate-100 text-slate-700 border-slate-200' 
+                          : role === 'proposed'
+                          ? 'bg-violet-50 text-violet-700 border-violet-200'
+                          : role === 'drawing'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-zinc-100 text-zinc-600 border-zinc-200';
+                      
+                      const roleLabel = 
+                        role === 'existing' 
+                          ? 'Before / Existing' 
+                          : role === 'proposed'
+                          ? 'After / Proposed'
+                          : role === 'drawing'
+                          ? 'CAD DXF'
+                          : 'Other';
+
+                      return (
+                        <div key={i} className="flex items-center justify-between bg-white px-3.5 py-2.5 rounded-xl border border-zinc-200/80 shadow-sm text-xs group hover:border-violet-300 transition-colors">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-4">
+                            <span className={`px-2 py-0.5 rounded-md border text-[9px] font-extrabold uppercase tracking-wide shrink-0 ${roleBadge}`}>
+                              {roleLabel}
+                            </span>
+                            <span className="text-slate-700 font-semibold truncate" title={file.name}>
+                              {file.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFiles((prev) => prev.filter((f) => f.name !== file.name));
+                              setFileRoles((prev) => {
+                                const next = { ...prev };
+                                delete next[file.name];
+                                return next;
+                              });
+                            }}
+                            className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer p-1 rounded hover:bg-rose-50"
+                            title="Remove file"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

@@ -38,10 +38,17 @@ async function extractDxfFootprint(input: ApplicationInput): Promise<ExtractedDa
   if (!dxfFile?.url) return undefined;
 
   try {
-    const storedName = getStoredNameFromUrl(dxfFile.url);
-    if (!storedName) return undefined;
-    const { data } = await readStoredBlob(storedName);
-    return parseDxfFootprint(data.toString('utf8')) || undefined;
+    let dxfText = '';
+    if (dxfFile.url.startsWith('http://') || dxfFile.url.startsWith('https://')) {
+      const res = await fetch(dxfFile.url);
+      dxfText = await res.text();
+    } else {
+      const storedName = getStoredNameFromUrl(dxfFile.url);
+      if (!storedName) return undefined;
+      const { data } = await readStoredBlob(storedName);
+      dxfText = data.toString('utf8');
+    }
+    return parseDxfFootprint(dxfText) || undefined;
   } catch (error) {
     console.warn('DXF footprint extraction failed:', error);
     return undefined;
@@ -107,15 +114,23 @@ async function llmExtractProjectDetails(input: ApplicationInput): Promise<Partia
   }
 
   try {
-    const imageFile = input.files.find((file) => isImageFile(file.name, file.type) && file.url);
+    const imageFile = input.files.find((file) => file.role === 'proposed' && isImageFile(file.name, file.type) && file.url)
+      || input.files.find((file) => isImageFile(file.name, file.type) && file.url);
     let imagePayload: string | undefined;
     const imageMime = imageFile?.type || 'image/png';
 
     if (imageFile?.url) {
-      const storedName = getStoredNameFromUrl(imageFile.url);
-      if (storedName) {
-        const { data } = await readStoredBlob(storedName);
-        imagePayload = `data:${imageMime};base64,${data.toString('base64')}`;
+      if (imageFile.url.startsWith('http://') || imageFile.url.startsWith('https://')) {
+        const res = await fetch(imageFile.url);
+        const arrayBuffer = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        imagePayload = `data:${imageMime};base64,${buffer.toString('base64')}`;
+      } else {
+        const storedName = getStoredNameFromUrl(imageFile.url);
+        if (storedName) {
+          const { data } = await readStoredBlob(storedName);
+          imagePayload = `data:${imageMime};base64,${data.toString('base64')}`;
+        }
       }
     }
 

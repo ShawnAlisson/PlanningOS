@@ -5,6 +5,7 @@ export interface FileRecord {
   url: string;
   size?: number;
   type?: string;
+  role?: string;
 }
 
 export type ApplicationStatus = 'pending' | 'processing' | 'completed' | 'failed';

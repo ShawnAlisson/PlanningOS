@@ -54,7 +54,17 @@ export default function StructuralPlan3D({
 }: StructuralPlan3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const footprint = application.extractedData?.footprint;
-  const layers = useMemo(() => normalizeLayers(footprint?.structuralLayers || [], overrideWidth, overrideDepth), [footprint?.structuralLayers, overrideWidth, overrideDepth]);
+
+  const rawLayers = useMemo(() => {
+    if (footprint?.structuralLayers?.length) {
+      return footprint.structuralLayers;
+    }
+    const propertyType = application.extractedData?.propertyType || 'Semi-detached';
+    const extensionType = application.extractedData?.extensionType || 'rear';
+    return generateSchematicLayers(propertyType, extensionType, overrideWidth, overrideDepth);
+  }, [footprint?.structuralLayers, application.extractedData, overrideWidth, overrideDepth]);
+
+  const layers = useMemo(() => normalizeLayers(rawLayers, overrideWidth, overrideDepth), [rawLayers, overrideWidth, overrideDepth]);
   const floors = useMemo(() => buildFloors(overrideHeight), [overrideHeight]);
 
   const [viewMode, setViewMode] = useState<'before' | 'after' | 'compare'>('compare');
@@ -62,6 +72,23 @@ export default function StructuralPlan3D({
   const [exploded, setExploded] = useState(false);
   const [visibleFloorIds, setVisibleFloorIds] = useState<Record<string, boolean>>({});
   const [visibleLayers, setVisibleLayers] = useState<Record<string, boolean>>({});
+  const [isControlModalOpen, setIsControlModalOpen] = useState(false);
+
+  const existingImageFile = useMemo(() => {
+    return application.files?.find((f) => f.role === 'existing' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application.files]);
+
+  const proposedImageFile = useMemo(() => {
+    return application.files?.find((f) => f.role === 'proposed' && /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application.files]);
+
+  const imageFile = useMemo(() => {
+    return application.files?.find((f) => /\.(png|jpg|jpeg|webp)$/i.test(f.name));
+  }, [application.files]);
+
+  const dxfFile = useMemo(() => {
+    return application.files?.find((f) => /\.dxf$/i.test(f.name));
+  }, [application.files]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -207,15 +234,6 @@ export default function StructuralPlan3D({
     floors,
   ]);
 
-  if (!footprint?.structuralLayers?.length) {
-    return (
-      <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center">
-        <Layers3 className="mx-auto h-6 w-6 text-zinc-300" />
-        <p className="mt-2 text-xs font-bold text-slate-500">Upload a DXF file to inspect floor plans, layers, and before/after geometry.</p>
-      </div>
-    );
-  }
-
   const generatedServices = layers.filter((layer) => layer.generated && SERVICE_SEMANTICS.includes(layer.semantic));
 
   return (
@@ -223,13 +241,56 @@ export default function StructuralPlan3D({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="flex items-center gap-1.5 text-sm font-black uppercase tracking-wider text-slate-500">
-            <Sparkles className="h-4 w-4 text-violet-600" /> Interactive 3D Room Proposal
+            <Sparkles className="h-4 w-4 text-violet-600" /> Interactive Proposal
           </h2>
           <p className="mt-0.5 text-[10px] font-bold text-slate-400">
-            Three.js floor planner view · real DXF walls · furnished rooms, glass openings, services, roof, and exploded floors
+            {footprint?.source === 'dxf' 
+              ? 'Three.js interactive builder · real CAD vectors · furnished spaces, glass openings, services, roof, and exploded levels'
+              : 'Three.js interactive builder · AI-synthesized spatial layout · furnished spaces, services, roof, and exploded levels'
+            }
           </p>
+          {dxfFile && footprint?.source === 'dxf' ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[9px] font-bold text-emerald-700">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              <span>3D model built from uploaded CAD file: <span className="underline">{dxfFile.name}</span></span>
+            </div>
+          ) : (existingImageFile || proposedImageFile) ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {existingImageFile && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[9px] font-bold text-slate-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-500 shrink-0" />
+                  <span>Existing Plan: <span className="underline">{existingImageFile.name}</span></span>
+                </div>
+              )}
+              {proposedImageFile && (
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[9px] font-bold text-violet-700">
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-500"></span>
+                  </span>
+                  <span>Proposed Plan: <span className="underline">{proposedImageFile.name}</span> ({application.extractedData?.propertyType || 'Semi-detached'} {application.extractedData?.extensionType || 'rear'} extension, {overrideWidth.toFixed(1)}m × {overrideDepth.toFixed(1)}m)</span>
+                </div>
+              )}
+            </div>
+          ) : imageFile ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1 text-[9px] font-bold text-violet-700">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-violet-500"></span>
+              </span>
+              <span>Synthesized based on uploaded plan drawing: <span className="underline">{imageFile.name}</span> ({application.extractedData?.propertyType || 'Semi-detached'} {application.extractedData?.extensionType || 'rear'} extension, {overrideWidth.toFixed(1)}m × {overrideDepth.toFixed(1)}m)</span>
+            </div>
+          ) : (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-slate-100 bg-slate-50 px-2.5 py-1 text-[9px] font-bold text-slate-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+              <span>Schematic fallback model based on project description</span>
+            </div>
+          )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           <ModeButton active={viewMode === 'before'} onClick={() => setViewMode('before')} label="Before" />
           <ModeButton active={viewMode === 'after'} onClick={() => setViewMode('after')} label="After" />
           <ModeButton active={viewMode === 'compare'} onClick={() => setViewMode('compare')} label="Compare" />
@@ -239,58 +300,100 @@ export default function StructuralPlan3D({
           <button onClick={() => setExploded((value) => !value)} className={`inline-flex items-center gap-1 rounded-lg border px-3 py-2 text-[10px] font-black uppercase tracking-wider ${exploded ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-zinc-200 bg-white text-slate-600'}`}>
             <Move3D className="h-3.5 w-3.5" /> Floors
           </button>
+          <button 
+            onClick={() => setIsControlModalOpen(true)} 
+            className="inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-600 hover:bg-violet-700 text-white px-3 py-2 text-[10px] font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer"
+          >
+            <Layers3 className="h-3.5 w-3.5" /> Floors &amp; CAD Layers
+          </button>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="h-[680px] overflow-hidden rounded-2xl border border-zinc-200 bg-slate-50 shadow-sm" ref={mountRef} />
-        <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <ControlGroup title="Floors">
-            {floors.map((floor) => (
-              <label key={floor.id} className="flex cursor-pointer items-center justify-between rounded-lg border border-zinc-100 bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-600">
-                <span>{floor.label}</span>
-                <input
-                  type="checkbox"
-                  checked={visibleFloorIds[floor.id] ?? true}
-                  onChange={(event) => setVisibleFloorIds((current) => ({ ...current, [floor.id]: event.target.checked }))}
-                  className="accent-violet-600"
-                />
-              </label>
-            ))}
-          </ControlGroup>
+      <div className="relative">
+        <div className="h-[680px] overflow-hidden rounded-2xl border border-zinc-200 bg-slate-50 shadow-sm w-full" ref={mountRef} />
 
-          <ControlGroup title="CAD Layers">
-            <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-              {layers.map((layer) => (
-                <label key={layer.name} className="flex cursor-pointer items-center gap-2 rounded-lg border border-zinc-100 bg-slate-50 px-2.5 py-2 text-xs font-bold text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={visibleLayers[layer.name] ?? layer.semantic !== 'annotation'}
-                    onChange={(event) => setVisibleLayers((current) => ({ ...current, [layer.name]: event.target.checked }))}
-                    className="accent-violet-600"
-                  />
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: toCssColor(SEMANTIC_COLORS[layer.semantic]) }} />
-                  <span className="min-w-0 flex-1 truncate" title={layer.name}>{layer.name}</span>
-                  <span className="text-[9px] uppercase tracking-wider text-slate-400">{layer.generated ? 'demo' : layer.semantic}</span>
-                </label>
-              ))}
+        {/* Modal Overlay for Controls */}
+        {isControlModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+            <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl space-y-5">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                  <Layers3 className="w-4 h-4 text-violet-600" /> Floors &amp; CAD Layers
+                </span>
+                <button 
+                  onClick={() => setIsControlModalOpen(false)}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="space-y-5">
+                <ControlGroup title="Floors">
+                  <div className="grid grid-cols-2 gap-2">
+                    {floors.map((floor) => (
+                      <label key={floor.id} className="flex cursor-pointer items-center justify-between rounded-xl border border-zinc-100 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100/50 transition-colors">
+                        <span>{floor.label}</span>
+                        <input
+                          type="checkbox"
+                          checked={visibleFloorIds[floor.id] ?? true}
+                          onChange={(event) => setVisibleFloorIds((current) => ({ ...current, [floor.id]: event.target.checked }))}
+                          className="accent-violet-600"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                </ControlGroup>
+
+                <ControlGroup title="CAD Layers">
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1 border border-slate-100 rounded-xl p-2 bg-slate-50/30">
+                    {layers.map((layer) => (
+                      <label key={layer.name} className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-zinc-100/50 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+                        <input
+                          type="checkbox"
+                          checked={visibleLayers[layer.name] ?? layer.semantic !== 'annotation'}
+                          onChange={(event) => setVisibleLayers((current) => ({ ...current, [layer.name]: event.target.checked }))}
+                          className="accent-violet-600"
+                        />
+                        <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: toCssColor(SEMANTIC_COLORS[layer.semantic]) }} />
+                        <span className="min-w-0 flex-1 truncate" title={layer.name}>{layer.name}</span>
+                        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-extrabold shrink-0">{layer.generated ? 'demo' : layer.semantic}</span>
+                      </label>
+                    ))}
+                  </div>
+                </ControlGroup>
+
+                <div className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-[10px] font-bold text-slate-500">
+                  <Metric label="Footprint Sizing" value={`${overrideWidth.toFixed(1)}m x ${overrideDepth.toFixed(1)}m`} />
+                  <Metric label="Floors Count" value={`${floors.length}`} />
+                  <Metric label="Total Height" value={`${overrideHeight.toFixed(1)}m`} />
+                  <Metric label="Rotation Angle" value={`${overrideRotationDeg.toFixed(0)} deg`} />
+                  <Metric label="Plan Confidence" value={footprint?.parserConfidence || 'schematic fallback'} />
+                </div>
+
+                {generatedServices.length > 0 && (
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-[10px] font-bold leading-relaxed text-sky-800">
+                    Full-demo overlay active: generated electrical, lighting, plumbing, and HVAC routes are shown because this proposal did not contain every service layer.
+                  </div>
+                )}
+              </div>
+
+              {/* Close Button */}
+              <div className="pt-3 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setIsControlModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-md shadow-slate-950/10 cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
             </div>
-          </ControlGroup>
-
-          <div className="space-y-1.5 rounded-xl border border-slate-200 bg-slate-50 p-3 text-[10px] font-bold text-slate-500">
-            <Metric label="Footprint" value={`${overrideWidth.toFixed(1)}m x ${overrideDepth.toFixed(1)}m`} />
-            <Metric label="Floors" value={`${floors.length}`} />
-            <Metric label="Height" value={`${overrideHeight.toFixed(1)}m`} />
-            <Metric label="Rotation" value={`${overrideRotationDeg.toFixed(0)} deg`} />
-            <Metric label="DXF confidence" value={footprint.parserConfidence || 'low'} />
           </div>
-
-          {generatedServices.length > 0 && (
-            <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-[10px] font-bold leading-relaxed text-sky-800">
-              Full-demo overlay active: generated electrical, lighting, plumbing, and HVAC routes are shown because this uploaded DXF did not contain every service layer.
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </section>
   );
@@ -337,7 +440,7 @@ function isProposedLayer(layer: RenderLayer) {
 }
 
 function isExistingLayer(layer: RenderLayer) {
-  return layer.semantic === 'existing' || layer.semantic === 'walls' || EXISTING_HINTS.test(layer.name.replace(/[_-]+/g, ' '));
+  return layer.semantic === 'existing' || layer.semantic === 'walls' || layer.semantic === 'demolition' || EXISTING_HINTS.test(layer.name.replace(/[_-]+/g, ' '));
 }
 
 function buildFloors(height: number) {
@@ -634,4 +737,307 @@ function makeGeneratedServiceLayer(semantic: Semantic, width: number, depth: num
 
 function toCssColor(value: number) {
   return `#${value.toString(16).padStart(6, '0')}`;
+}
+
+function generateSchematicLayers(propertyType: string, extensionType: string, width: number, depth: number): StructuralLayer[] {
+  const layers: StructuralLayer[] = [];
+
+  // Existing house sizing
+  const hw = 8;
+  const hd = 7;
+  const exWalls = [
+    { x: -hw / 2, y: -hd / 2 },
+    { x: hw / 2, y: -hd / 2 },
+    { x: hw / 2, y: hd / 2 },
+    { x: -hw / 2, y: hd / 2 },
+  ];
+
+  layers.push({
+    name: 'EXISTING_OUTER_WALLS',
+    semantic: 'existing',
+    entityCount: 1,
+    entities: [{ type: 'LWPOLYLINE', closed: true, pointsM: exWalls }],
+  });
+
+  // Inner partition walls
+  layers.push({
+    name: 'EXISTING_PARTITION_WALLS',
+    semantic: 'existing',
+    entityCount: 2,
+    entities: [
+      { type: 'LINE', pointsM: [{ x: -hw / 2 + 3, y: -hd / 2 }, { x: -hw / 2 + 3, y: hd / 2 - 1.5 }] },
+      { type: 'LINE', pointsM: [{ x: -hw / 2 + 3, y: hd / 2 - 1.5 }, { x: hw / 2, y: hd / 2 - 1.5 }] },
+    ],
+  });
+
+  const extType = extensionType.toLowerCase();
+
+  if (extType === 'side') {
+    const extW = width;
+    const extD = Math.min(hd, depth);
+    const xMin = hw / 2;
+    const xMax = hw / 2 + extW;
+    const yMin = -hd / 2;
+    const yMax = -hd / 2 + extD;
+
+    layers.push({
+      name: 'PROPOSED_EXTENSION_WALLS',
+      semantic: 'proposed',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: false,
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMax, y: yMin },
+          { x: xMax, y: yMax },
+          { x: xMin, y: yMax },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'DEMOLITION_WALLS',
+      semantic: 'demolition',
+      entityCount: 1,
+      entities: [{
+        type: 'LINE',
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMin, y: yMax },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_FLOORS',
+      semantic: 'floors',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMax, y: yMin },
+          { x: xMax, y: yMax },
+          { x: xMin, y: yMax },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_OPENINGS',
+      semantic: 'openings',
+      entityCount: 1,
+      entities: [{
+        type: 'LINE',
+        pointsM: [
+          { x: xMax, y: yMin + extD * 0.3 },
+          { x: xMax, y: yMin + extD * 0.7 },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_DESK',
+      semantic: 'furniture',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMax - extW * 0.2, y: yMin + extD * 0.2 },
+          { x: xMax - 0.1, y: yMin + extD * 0.2 },
+          { x: xMax - 0.1, y: yMin + extD * 0.5 },
+          { x: xMax - extW * 0.2, y: yMin + extD * 0.5 },
+        ],
+      }],
+    });
+  } else if (extType === 'loft') {
+    const extW = width;
+    const extD = depth;
+    const xMin = -extW / 2;
+    const xMax = extW / 2;
+    const yMin = -extD / 2;
+    const yMax = extD / 2;
+
+    layers.push({
+      name: 'PROPOSED_DORMER_WALLS',
+      semantic: 'proposed',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: false,
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMin, y: yMax },
+          { x: xMax, y: yMax },
+          { x: xMax, y: yMin },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_FLOORS',
+      semantic: 'floors',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMax, y: yMin },
+          { x: xMax, y: yMax },
+          { x: xMin, y: yMax },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_BED',
+      semantic: 'furniture',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMin + 0.5, y: yMin + 0.5 },
+          { x: xMin + 2.1, y: yMin + 0.5 },
+          { x: xMin + 2.1, y: yMin + 2.3 },
+          { x: xMin + 0.5, y: yMin + 2.3 },
+        ],
+      }],
+    });
+  } else {
+    // rear extension (default)
+    const extW = width;
+    const extD = depth;
+    const xMin = -extW / 2;
+    const xMax = extW / 2;
+    const yMin = hd / 2;
+    const yMax = hd / 2 + extD;
+
+    layers.push({
+      name: 'PROPOSED_EXTENSION_WALLS',
+      semantic: 'proposed',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: false,
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMin, y: yMax },
+          { x: xMax, y: yMax },
+          { x: xMax, y: yMin },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'DEMOLITION_WALLS',
+      semantic: 'demolition',
+      entityCount: 1,
+      entities: [{
+        type: 'LINE',
+        pointsM: [
+          { x: Math.max(-hw / 2, xMin), y: yMin },
+          { x: Math.min(hw / 2, xMax), y: yMin },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_FLOORS',
+      semantic: 'floors',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMin, y: yMin },
+          { x: xMax, y: yMin },
+          { x: xMax, y: yMax },
+          { x: xMin, y: yMax },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_OPENINGS_BIFOLD',
+      semantic: 'openings',
+      entityCount: 1,
+      entities: [{
+        type: 'LINE',
+        pointsM: [
+          { x: xMin + extW * 0.15, y: yMax },
+          { x: xMax - extW * 0.15, y: yMax },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_KITCHEN_ISLAND',
+      semantic: 'furniture',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMin + extW * 0.2, y: yMin + extD * 0.2 },
+          { x: xMin + extW * 0.4, y: yMin + extD * 0.2 },
+          { x: xMin + extW * 0.4, y: yMin + extD * 0.5 },
+          { x: xMin + extW * 0.2, y: yMin + extD * 0.5 },
+        ],
+      }],
+    });
+
+    layers.push({
+      name: 'PROPOSED_DINING_TABLE',
+      semantic: 'furniture',
+      entityCount: 1,
+      entities: [{
+        type: 'LWPOLYLINE',
+        closed: true,
+        pointsM: [
+          { x: xMax - extW * 0.4, y: yMin + extD * 0.3 },
+          { x: xMax - extW * 0.15, y: yMin + extD * 0.3 },
+          { x: xMax - extW * 0.15, y: yMin + extD * 0.65 },
+          { x: xMax - extW * 0.4, y: yMin + extD * 0.65 },
+        ],
+      }],
+    });
+  }
+
+  // Existing openings & furniture (living room layout)
+  layers.push({
+    name: 'EXISTING_OPENINGS_DOOR',
+    semantic: 'openings',
+    entityCount: 1,
+    entities: [{ type: 'LINE', pointsM: [{ x: hw / 2 - 1.5, y: -hd / 2 }, { x: hw / 2 - 0.5, y: -hd / 2 }] }],
+  });
+
+  layers.push({
+    name: 'EXISTING_OPENINGS_WINDOW',
+    semantic: 'openings',
+    entityCount: 1,
+    entities: [{ type: 'LINE', pointsM: [{ x: -hw / 2 + 1, y: -hd / 2 }, { x: -hw / 2 + 2, y: -hd / 2 }] }],
+  });
+
+  layers.push({
+    name: 'EXISTING_SOFA',
+    semantic: 'furniture',
+    entityCount: 1,
+    entities: [{
+      type: 'LWPOLYLINE',
+      closed: true,
+      pointsM: [
+        { x: -hw / 2 + 3.5, y: -hd / 2 + 1 },
+        { x: hw / 2 - 1, y: -hd / 2 + 1 },
+        { x: hw / 2 - 1, y: -hd / 2 + 2.5 },
+        { x: -hw / 2 + 3.5, y: -hd / 2 + 2.5 },
+      ],
+    }],
+  });
+
+  return layers;
 }

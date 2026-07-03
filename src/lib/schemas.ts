@@ -5,6 +5,7 @@ export const fileRecordSchema = z.object({
   url: z.string().min(1),
   size: z.number().int().nonnegative().optional(),
   type: z.string().optional(),
+  role: z.string().optional(),
 });
 
 export const applicationStatusSchema = z.enum(['pending', 'processing', 'completed', 'failed']);

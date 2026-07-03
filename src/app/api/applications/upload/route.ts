@@ -16,7 +16,7 @@ async function readRequestBody(req: Request) {
     const files = form
       .getAll('files')
       .filter((item): item is File => item instanceof File);
-    const storedFiles = await saveUploadedFiles(files);
+    const storedFiles = await saveUploadedFiles(files, parsed.filesMetadata);
 
     return {
       ...parsed,
