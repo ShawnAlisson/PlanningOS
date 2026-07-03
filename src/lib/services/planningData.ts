@@ -22,16 +22,16 @@ export const CONSTRAINT_DATASETS = [
 export type ConstraintDataset = (typeof CONSTRAINT_DATASETS)[number];
 
 export interface ConstraintEntity {
-  entityId: number;
-  dataset: ConstraintDataset;
-  name: string;
-  reference: string;
-  entityUrl: string;
-  documentationUrl?: string;
-  designationDate?: string;
-  floodRiskLevel?: string;
-  floodRiskType?: string;
-  listedBuildingGrade?: string;
+  entityId?: number | string;
+  dataset?: string;
+  name?: string | null;
+  reference?: string | null;
+  entityUrl?: string | null;
+  documentationUrl?: string | null;
+  designationDate?: string | null;
+  floodRiskLevel?: string | null;
+  floodRiskType?: string | null;
+  listedBuildingGrade?: string | null;
   geometry?: GeoJSONGeometry | null;
 }
 

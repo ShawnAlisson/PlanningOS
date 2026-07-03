@@ -116,16 +116,16 @@ export const constraintDatasetSchema = z.enum([
 ]);
 
 export const constraintEntitySchema = z.object({
-  entityId: z.number(),
-  dataset: constraintDatasetSchema,
-  name: z.string(),
-  reference: z.string(),
-  entityUrl: z.string(),
-  documentationUrl: z.string().optional(),
-  designationDate: z.string().optional(),
-  floodRiskLevel: z.string().optional(),
-  floodRiskType: z.string().optional(),
-  listedBuildingGrade: z.string().optional(),
+  entityId: z.union([z.number(), z.string()]).optional(),
+  dataset: z.string().optional(),
+  name: z.string().nullable().optional(),
+  reference: z.string().nullable().optional(),
+  entityUrl: z.string().nullable().optional(),
+  documentationUrl: z.string().nullable().optional(),
+  designationDate: z.string().nullable().optional(),
+  floodRiskLevel: z.string().nullable().optional(),
+  floodRiskType: z.string().nullable().optional(),
+  listedBuildingGrade: z.string().nullable().optional(),
   geometry: z.any().nullable().optional(),
 });
 

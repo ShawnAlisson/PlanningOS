@@ -119,10 +119,14 @@ export default function Sidebar() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
-      const newApp = await res.json();
-      router.push(`/processing/${newApp.id}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create application');
+      }
+      router.push(`/processing/${data.id}`);
     } catch (e) {
       console.error(e);
+      alert(`Could not start planning audit: ${e instanceof Error ? e.message : 'Unexpected error'}`);
     } finally {
       setPreloading(null);
     }

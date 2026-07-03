@@ -236,12 +236,14 @@ export default function Dashboard() {
       files.forEach((file) => form.append('files', file));
 
       const res = await fetch('/api/applications/upload', { method: 'POST', body: form });
-      if (!res.ok) throw new Error('Failed to create application');
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create application');
+      }
       router.push(`/processing/${data.id}`);
     } catch (error) {
       console.error(error);
-      alert('Could not start planning audit.');
+      alert(`Could not start planning audit: ${error instanceof Error ? error.message : 'Unexpected error'}`);
       setSubmitting(false);
     }
   };

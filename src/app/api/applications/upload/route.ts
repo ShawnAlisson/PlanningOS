@@ -41,6 +41,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(created, { status: 201 });
   } catch (error: unknown) {
+    console.error('[Upload API Exception]:', error);
     const message = error instanceof Error ? error.message : 'Unexpected error';
     return NextResponse.json({ error: message }, { status: 400 });
   }
