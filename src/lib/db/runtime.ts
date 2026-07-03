@@ -181,7 +181,7 @@ export const DbRuntime = {
       return withMongo(async (db) => {
         await db.collection('agentResults').updateOne(
           { applicationId: sanitized.applicationId, agentType: sanitized.agentType },
-          { $set: sanitized, $setOnInsert: { createdAt: sanitized.createdAt ?? new Date().toISOString() } },
+          { $set: sanitized },
           { upsert: true }
         );
         return sanitized;
