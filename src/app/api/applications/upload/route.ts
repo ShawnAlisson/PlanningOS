@@ -1,0 +1,44 @@
+import { NextResponse } from 'next/server';
+import { ApplicationsRepository } from '@/lib/repositories';
+import { createApplicationSchema } from '@/lib/schemas';
+import { saveUploadedFiles } from '@/lib/storage/blob';
+
+export const runtime = 'nodejs';
+
+async function readRequestBody(req: Request) {
+  const contentType = req.headers.get('content-type') || '';
+
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData();
+    const metadata = form.get('metadata');
+    const parsed = metadata ? JSON.parse(String(metadata)) : {};
+    const files = form
+      .getAll('files')
+      .filter((item): item is File => item instanceof File);
+    const storedFiles = await saveUploadedFiles(files);
+
+    return {
+      ...parsed,
+      files: storedFiles,
+    };
+  }
+
+  return req.json();
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await readRequestBody(req);
+    const parsed = createApplicationSchema.parse(body);
+    const created = await ApplicationsRepository.create({
+      ...parsed,
+      status: 'pending',
+      fileCount: parsed.files.length,
+    });
+
+    return NextResponse.json(created, { status: 201 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unexpected error';
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

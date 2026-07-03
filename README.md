@@ -1,3 +1,6 @@
+![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
+![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
@@ -16,9 +19,39 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## What This MVP Uses
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- User-entered project details and uploaded files.
+- MongoDB when `MONGODB_URI` is set, with a local JSON fallback for hackathon demo mode.
+- Blob-style file storage under `data/blobs` for uploaded files.
+- UK planning guidance references baked into the scoring and review copy.
+
+## Main Endpoints
+
+- `POST /api/applications/upload`
+- `GET /api/applications/:id`
+- `POST /api/applications/:id/run-agents`
+- `GET /api/applications/:id/results`
+- `GET /api/applications/:id/audit`
+- `POST /api/agent/chat`
+
+## Fetch.ai Bridge
+
+See [FETCHAI.md](FETCHAI.md) for the Agentverse/ASI:One-facing bridge, payloads, and demo flow.
+
+## How To Test It
+
+1. Start the app with `npm run dev`.
+2. Open the home page and try one of the demo scenarios.
+3. Submit a new application from `/upload`.
+4. Watch the processing page, then open the review page.
+5. Run `npm run lint` before you hand it to judges.
+
+For a production version, connect the app to live UK datasets such as council constraint maps, the Environment Agency flood layer, and any sponsor feeds you want to display.
+
+You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
+
+This build uses a local/system font stack so it can compile offline inside the hackathon environment.
 
 ## Learn More
 

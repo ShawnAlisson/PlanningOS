@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local development storage
+/data/db.json
+/data/blobs/
+
+# IDE configurations
+.vscode/
+.idea/
+
+plan.md
