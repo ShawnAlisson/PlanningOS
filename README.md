@@ -196,6 +196,9 @@ npm run build    # production build should succeed
 
 See [FETCHAI.md](FETCHAI.md) for the full write-up. Quick local test:
 
+See the [Agent](https://asi1.ai/ai/agent1qtvkpscws7ymqkxtel3kgnf3d252c0ygg8nxlfzad4fjjsyan7tdqe2p8y7).
+
+
 ```bash
 cd agentverse
 pip install -r requirements.txt
