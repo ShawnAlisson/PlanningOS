@@ -67,7 +67,7 @@ export function buildMassingFootprint(input: MassingInput) {
   });
 
   const rawVertices = input.footprint?.verticesM?.length
-    ? scaleVerticesToSize(input.footprint.verticesM, widthM, depthM)
+    ? normalizeVerticesToEditorAxes(input.footprint.verticesM, widthM, depthM)
     : [
         { x: -widthM / 2, y: -depthM / 2 },
         { x: widthM / 2, y: -depthM / 2 },
@@ -98,9 +98,17 @@ export function buildMassingFootprint(input: MassingInput) {
   };
 }
 
-function scaleVerticesToSize(vertices: Array<{ x: number; y: number }>, targetWidthM: number, targetDepthM: number) {
-  const xs = vertices.map((point) => point.x);
-  const ys = vertices.map((point) => point.y);
+function normalizeVerticesToEditorAxes(vertices: Array<{ x: number; y: number }>, targetWidthM: number, targetDepthM: number) {
+  const angle = dominantEdgeAngle(vertices);
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const unrotated = vertices.map((point) => ({
+    x: point.x * cos - point.y * sin,
+    y: point.x * sin + point.y * cos,
+  }));
+
+  const xs = unrotated.map((point) => point.x);
+  const ys = unrotated.map((point) => point.y);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
@@ -112,8 +120,26 @@ function scaleVerticesToSize(vertices: Array<{ x: number; y: number }>, targetWi
   const centerX = (minX + maxX) / 2;
   const centerY = (minY + maxY) / 2;
 
-  return vertices.map((point) => ({
+  return unrotated.map((point) => ({
     x: (point.x - centerX) * scaleX,
     y: (point.y - centerY) * scaleY,
   }));
+}
+
+function dominantEdgeAngle(vertices: Array<{ x: number; y: number }>) {
+  let longestLength = 0;
+  let angle = 0;
+
+  vertices.forEach((point, index) => {
+    const next = vertices[(index + 1) % vertices.length];
+    const dx = next.x - point.x;
+    const dy = next.y - point.y;
+    const length = Math.hypot(dx, dy);
+    if (length > longestLength) {
+      longestLength = length;
+      angle = Math.atan2(dy, dx);
+    }
+  });
+
+  return angle;
 }

@@ -86,6 +86,14 @@ const ROLE_STORIES: Record<Role, { title: string; story: string; saveLine: strin
   },
 };
 
+const SPONSOR_REQUIREMENTS = [
+  'Source ACL sync',
+  'Retrieval-layer enforcement',
+  'No LLM permission call',
+  'Audit-grade logs',
+  'Lineage inheritance',
+];
+
 const DEMO_PROTECTED_NOTE = "Applicant's agent called - contact number 07123 456789. Officer leans towards approval pending drainage note.";
 
 export default function AccessPanel({ applicationId }: { applicationId: string }) {
@@ -156,6 +164,16 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
   const publicTemporalUnlocked = role === 'public' && daysOffset >= (view?.application.temporalUnlockDays ?? 30);
   const roleStory = ROLE_STORIES[role];
   const protectedNoteDetail = notesVisible ? String(officerNote) : DEMO_PROTECTED_NOTE;
+  const roleOutcomes = getRoleOutcomes({
+    role,
+    resultsVisible,
+    contactVisible,
+    notesVisible,
+    publicTemporalUnlocked,
+    protectedNoteDetail,
+  });
+  const leftOutcomes = roleOutcomes.slice(0, 2);
+  const rightOutcomes = roleOutcomes.slice(2);
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-white shadow-xl shadow-slate-950/10">
@@ -184,15 +202,38 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
           </div>
         </div>
 
+        <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/[0.06] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-100">Core sponsor checklist</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-300">These are the BasedAI requirements this demo is proving live.</p>
+            </div>
+            <div className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-cyan-100">
+              P99 target: under 200ms
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {SPONSOR_REQUIREMENTS.map((requirement) => (
+              <div key={requirement} className="rounded-lg border border-white/10 bg-slate-950/45 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-200" />
+                  <p className="text-[10px] font-black leading-tight text-white">{requirement}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {(Object.keys(ROLE_LABELS) as Role[]).map((r) => {
             const Icon = ROLE_ICONS[r];
             const selected = role === r;
+            const story = ROLE_STORIES[r];
             return (
               <button
                 key={r}
                 onClick={() => setRole(r)}
-                className={`min-h-24 rounded-lg border p-3 text-left transition-all ${
+                className={`rounded-lg border p-3 text-left transition-all ${
                   selected
                     ? 'border-cyan-300 bg-cyan-300/15 shadow-lg shadow-cyan-950/30'
                     : 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-300/35 hover:bg-white/[0.07]'
@@ -206,47 +247,44 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
                 </div>
                 <p className="mt-3 text-xs font-black leading-tight text-white">{ROLE_LABELS[r]}</p>
                 <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{ROLE_TAGLINES[r]}</p>
+                {selected && (
+                  <div className="mt-3 rounded-lg border border-cyan-300/20 bg-slate-950/45 p-3">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-cyan-100">Live role preview: {ROLE_LABELS[r]}</p>
+                    <p className="mt-1 text-xs font-black leading-tight text-white">{story.title}</p>
+                    <p className="mt-1 text-[10px] leading-relaxed text-slate-300">{story.story}</p>
+                    <p className="mt-2 inline-flex rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-emerald-100">
+                      Permission gate is live
+                    </p>
+                  </div>
+                )}
               </button>
             );
           })}
         </div>
 
-        <div className="mt-5 grid gap-4 2xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="mt-5">
           <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-100">Live role preview: {ROLE_LABELS[role]}</p>
-                <p className="mt-1 text-sm font-black leading-tight text-white">{roleStory.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">{roleStory.story}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-100">What changes when the role changes</p>
+                <p className="mt-1 text-sm font-black leading-tight text-white">The same AI memory, filtered through a different viewer</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-400">The role lens above explains the human story. This panel shows which memories pass or stay protected.</p>
               </div>
               <div className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-emerald-100">
-                Permission gate is live
+                {loading ? 'Refreshing checks...' : 'Permission gate is live'}
               </div>
             </div>
 
-            {loading || !view ? (
+            {!view ? (
               <div className="mt-4 rounded-lg border border-cyan-300/20 bg-cyan-300/10 p-4 text-xs font-bold text-cyan-100">
                 Evaluating access through deterministic rules...
               </div>
             ) : (
               <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_1fr] lg:items-stretch">
                 <div className="space-y-2">
-                  <AccessOutcome
-                    icon={FileText}
-                    label="Final planning decision"
-                    visible={resultsVisible}
-                    allowedText="Shown to this role"
-                    blockedText="Hidden because the source was revoked"
-                    detail={resultsVisible ? 'Agent results and the final recommendation can be retrieved.' : 'The source case was revoked, so derived AI memory is closed too.'}
-                  />
-                  <AccessOutcome
-                    icon={ShieldCheck}
-                    label="Internal officer note"
-                    visible={notesVisible}
-                    allowedText="Shown"
-                    blockedText="Protected"
-                    detail={protectedNoteDetail}
-                  />
+                  {leftOutcomes.map((outcome) => (
+                    <AccessOutcome key={outcome.label} {...outcome} />
+                  ))}
                 </div>
 
                 <div className="hidden h-full min-h-44 flex-col items-center justify-center gap-2 lg:flex">
@@ -261,22 +299,9 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
                 </div>
 
                 <div className="space-y-2">
-                  <AccessOutcome
-                    icon={Eye}
-                    label="Applicant contact details"
-                    visible={contactVisible}
-                    allowedText="Shown"
-                    blockedText="Protected"
-                    detail={contactVisible ? 'This role can retrieve the applicant contact record.' : 'Phone numbers and personal contact data do not leave the gate.'}
-                  />
-                  <AccessOutcome
-                    icon={Gavel}
-                    label="Audit and rule evidence"
-                    visible={role === 'auditor' || role === 'case-officer'}
-                    allowedText="Inspectable"
-                    blockedText="Summarised only"
-                    detail={role === 'auditor' || role === 'case-officer' ? 'Rule IDs, allow/deny reasons, and timings are available for review.' : 'The public view gets the outcome, not internal access-check evidence.'}
-                  />
+                  {rightOutcomes.map((outcome) => (
+                    <AccessOutcome key={outcome.label} {...outcome} />
+                  ))}
                 </div>
               </div>
             )}
@@ -287,18 +312,29 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
             </div>
           </div>
 
+        </div>
+
+        {view?.application.accessRevoked && (
+          <div className="mt-4 flex items-start gap-3 rounded-lg border border-rose-300/35 bg-rose-400/10 px-4 py-3 text-xs font-semibold leading-relaxed text-rose-50">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-200" />
+            Source access is revoked. The restriction has propagated to agent results, final decision, evidence, and other derived memory for every
+            role except case officer and auditor.
+          </div>
+        )}
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="rounded-lg border border-white/10 bg-slate-900/70 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-100">30-day public disclosure rule</p>
-                <p className="mt-1 text-xs text-slate-400">Move time forward and watch internal notes become public automatically after the decision window.</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-fuchsia-100">Bonus challenge: 30-day unlock</p>
+                <p className="mt-1 text-xs text-slate-400">A smaller proof of temporal access rules: locked today, public after day 30.</p>
               </div>
               <Timer className={publicTemporalUnlocked ? 'h-5 w-5 text-emerald-300' : 'h-5 w-5 text-fuchsia-200'} />
             </div>
 
-            <div className="mt-5">
+            <div className="mt-4">
               <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <span>Decision day</span>
+                <span>Simulated days after decision</span>
                 <span className={publicTemporalUnlocked ? 'text-emerald-200' : 'text-fuchsia-100'}>{daysOffset} day(s)</span>
               </div>
               <input
@@ -312,10 +348,14 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
                 <div className="h-1 rounded-full bg-fuchsia-300/40" />
                 <div className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-widest ${daysOffset >= 30 ? 'border-emerald-300/50 bg-emerald-300/15 text-emerald-100' : 'border-fuchsia-300/40 bg-fuchsia-300/10 text-fuchsia-100'}`}>
-                  Day 30 unlock
+                  Public after day 30
                 </div>
                 <div className="h-1 rounded-full bg-emerald-300/40" />
               </div>
+              <p className="mt-3 text-xs leading-relaxed text-slate-300">
+                This is optional for the bounty, but recognizable: the rule engine can unlock eligible memory by time, without staff manually changing
+                permissions.
+              </p>
             </div>
 
             <div className="mt-5 rounded-lg border border-cyan-300/20 bg-cyan-300/[0.07] p-3">
@@ -328,17 +368,7 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
               </div>
             </div>
           </div>
-        </div>
 
-        {view?.application.accessRevoked && (
-          <div className="mt-4 flex items-start gap-3 rounded-lg border border-rose-300/35 bg-rose-400/10 px-4 py-3 text-xs font-semibold leading-relaxed text-rose-50">
-            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-200" />
-            Source access is revoked. The restriction has propagated to agent results, final decision, evidence, and other derived memory for every
-            role except case officer and auditor.
-          </div>
-        )}
-
-        <div className="mt-4 grid gap-4 2xl:grid-cols-[1fr_1fr]">
           <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Deterministic audit receipts</p>
@@ -364,14 +394,22 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
               Every request above is enforced at retrieval with a synchronous rule lookup, then written to the audit trail for compliance review.
             </p>
           </div>
+        </div>
 
+        <div className="mt-4">
           <div className="rounded-lg border border-white/10 bg-slate-900/70 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Case officer writes protected memory</p>
-                <p className="mt-1 text-xs text-slate-400">Add a sensitive note once. The system classifies it, then every role sees only what they are allowed to see.</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Leak test demo</p>
+                <p className="mt-1 text-xs text-slate-400">Run this in front of sponsors: save sensitive memory, switch roles, watch the leak get blocked.</p>
               </div>
               <Activity className="h-5 w-5 text-emerald-300" />
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <DemoStep step="1" title="Write" detail="Add a note with a phone number." />
+              <DemoStep step="2" title="Save" detail="Classify at write time." />
+              <DemoStep step="3" title="Switch" detail="Public view cannot retrieve it." />
             </div>
 
             <textarea
@@ -383,12 +421,18 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
             />
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
+                onClick={() => setNotesDraft(DEMO_PROTECTED_NOTE)}
+                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-200 hover:bg-white/[0.07]"
+              >
+                Use sample note
+              </button>
+              <button
                 onClick={saveNotes}
                 disabled={savingNotes}
                 className="inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-950 hover:bg-cyan-200 disabled:opacity-50"
               >
                 <Save className="h-3.5 w-3.5" />
-                {savingNotes ? 'Classifying...' : 'Save protected note'}
+                {savingNotes ? 'Classifying...' : 'Save + classify'}
               </button>
               <button
                 onClick={toggleRevoke}
@@ -403,7 +447,7 @@ export default function AccessPanel({ applicationId }: { applicationId: string }
               </button>
             </div>
             <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
-              Fast sponsor demo: save the example note, switch between Public, Applicant, Officer, and Auditor, then drag the 30-day rule forward.
+              This is the core demo: classification may happen on write, but every read is enforced deterministically by role and source lineage.
             </p>
           </div>
         </div>
@@ -425,6 +469,189 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: 'c
       <p className="mt-1 text-[9px] font-black uppercase tracking-widest opacity-80">{label}</p>
     </div>
   );
+}
+
+function DemoStep({ step, title, detail }: { step: string; title: string; detail: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-slate-950/55 p-3">
+      <div className="flex items-center gap-2">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300 text-[10px] font-black text-slate-950">{step}</span>
+        <p className="text-[10px] font-black uppercase tracking-widest text-white">{title}</p>
+      </div>
+      <p className="mt-2 text-[10px] leading-relaxed text-slate-400">{detail}</p>
+    </div>
+  );
+}
+
+interface RoleOutcome {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  visible: boolean;
+  allowedText: string;
+  blockedText: string;
+  detail: string;
+}
+
+function getRoleOutcomes({
+  role,
+  resultsVisible,
+  contactVisible,
+  notesVisible,
+  publicTemporalUnlocked,
+  protectedNoteDetail,
+}: {
+  role: Role;
+  resultsVisible: boolean;
+  contactVisible: boolean;
+  notesVisible: boolean;
+  publicTemporalUnlocked: boolean;
+  protectedNoteDetail: string;
+}): RoleOutcome[] {
+  if (role === 'public') {
+    return [
+      {
+        icon: FileText,
+        label: 'Public planning outcome',
+        visible: resultsVisible,
+        allowedText: 'Shown',
+        blockedText: 'Hidden',
+        detail: resultsVisible ? 'The final recommendation and public-safe agent summary can be retrieved.' : 'The source case was revoked, so derived AI memory is closed too.',
+      },
+      {
+        icon: Users,
+        label: 'Applicant private details',
+        visible: false,
+        allowedText: 'Shown',
+        blockedText: 'Not included',
+        detail: 'Phone numbers, contact records, and personal details are excluded from the public register view.',
+      },
+      {
+        icon: Timer,
+        label: 'Released post-decision notes',
+        visible: publicTemporalUnlocked && notesVisible,
+        allowedText: 'Released',
+        blockedText: 'Locked',
+        detail: publicTemporalUnlocked ? 'The 30-day temporal rule can release eligible notes automatically.' : 'Bonus temporal rule: this remains locked until the simulated day reaches 30.',
+      },
+      {
+        icon: Gavel,
+        label: 'Internal audit evidence',
+        visible: false,
+        allowedText: 'Shown',
+        blockedText: 'Hidden',
+        detail: 'The public gets the outcome, not internal access-check evidence or compliance review material.',
+      },
+    ];
+  }
+
+  if (role === 'applicant') {
+    return [
+      {
+        icon: FileText,
+        label: 'My case outcome',
+        visible: resultsVisible,
+        allowedText: 'Shown',
+        blockedText: 'Hidden',
+        detail: resultsVisible ? 'The applicant can retrieve the final decision and relevant case result.' : 'The source case was revoked, so derived AI memory is closed too.',
+      },
+      {
+        icon: Eye,
+        label: 'My contact record',
+        visible: contactVisible,
+        allowedText: 'Shown',
+        blockedText: 'Not provided',
+        detail: contactVisible ? 'The applicant can retrieve their own protected contact record.' : 'No applicant contact record is available in this demo case.',
+      },
+      {
+        icon: ShieldCheck,
+        label: 'Council private workspace',
+        visible: false,
+        allowedText: 'Shown',
+        blockedText: 'Blocked',
+        detail: 'Internal council working material is not exposed to the applicant role.',
+      },
+      {
+        icon: Gavel,
+        label: 'Compliance evidence',
+        visible: false,
+        allowedText: 'Shown',
+        blockedText: 'Summarised',
+        detail: 'The applicant sees the case result, not the full internal audit and rule-evaluation trail.',
+      },
+    ];
+  }
+
+  if (role === 'case-officer') {
+    return [
+      {
+        icon: FileText,
+        label: 'Full case memory',
+        visible: true,
+        allowedText: 'Shown',
+        blockedText: 'Hidden',
+        detail: 'The officer can retrieve the decision, agent outputs, and case context needed to work the file.',
+      },
+      {
+        icon: ShieldCheck,
+        label: 'Internal officer note',
+        visible: notesVisible,
+        allowedText: 'Shown',
+        blockedText: 'Empty',
+        detail: notesVisible ? protectedNoteDetail : 'No protected officer note has been saved yet. Use the leak test demo below.',
+      },
+      {
+        icon: Eye,
+        label: 'Applicant contact details',
+        visible: contactVisible,
+        allowedText: 'Shown',
+        blockedText: 'Not provided',
+        detail: contactVisible ? 'The officer can retrieve protected applicant contact details for case handling.' : 'No applicant contact record is available in this demo case.',
+      },
+      {
+        icon: Gavel,
+        label: 'Audit and rule evidence',
+        visible: true,
+        allowedText: 'Inspectable',
+        blockedText: 'Hidden',
+        detail: 'Rule IDs, allow/deny reasons, and timings are available for officer review.',
+      },
+    ];
+  }
+
+  return [
+    {
+      icon: FileText,
+      label: 'Complete memory trail',
+      visible: true,
+      allowedText: 'Shown',
+      blockedText: 'Hidden',
+      detail: 'The auditor can inspect source data, derived memory, final decision, and access outcomes.',
+    },
+    {
+      icon: ShieldCheck,
+      label: 'Internal officer note',
+      visible: notesVisible,
+      allowedText: 'Shown',
+      blockedText: 'Empty',
+      detail: notesVisible ? protectedNoteDetail : 'No protected officer note has been saved yet. Use the leak test demo below.',
+    },
+    {
+      icon: GitBranch,
+      label: 'Lineage and revocation proof',
+      visible: true,
+      allowedText: 'Inspectable',
+      blockedText: 'Hidden',
+      detail: 'The auditor can verify that derived memory inherits the current source access constraints.',
+    },
+    {
+      icon: Gavel,
+      label: 'Audit and rule evidence',
+      visible: true,
+      allowedText: 'Inspectable',
+      blockedText: 'Hidden',
+      detail: 'Deterministic rule IDs, reasons, and latency evidence are available for compliance review.',
+    },
+  ];
 }
 
 function AccessOutcome({

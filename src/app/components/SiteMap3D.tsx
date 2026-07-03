@@ -21,6 +21,12 @@ const CONSTRAINT_STYLES: { key: keyof NonNullable<Application['siteConstraints']
   { key: 'article4Directions', color: '#dc2626', label: 'Article 4 direction' },
 ];
 
+const finiteNumber = (value: number | undefined, fallback: number) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
+const positiveNumber = (value: number | undefined, fallback: number) =>
+  Math.max(0.1, finiteNumber(value, fallback));
+
 interface SiteMap3DProps {
   application: Application;
   recommendation?: PlanningDecision;
@@ -51,13 +57,13 @@ export default function SiteMap3D({
   const footprint = application.extractedData?.footprint;
 
   // Use override values if provided, falling back to application metadata or standard defaults
-  const activeHeight = overrideHeight !== undefined ? overrideHeight : (application.extractedData?.proposedHeight ?? 3);
-  const activeVolume = application.extractedData?.proposedVolume;
-  const activeWidthM = overrideWidth !== undefined ? overrideWidth : (footprint?.widthM ?? 10);
-  const activeDepthM = overrideDepth !== undefined ? overrideDepth : (footprint?.depthM ?? 10);
-  const activeRotationDeg = overrideRotationDeg !== undefined ? overrideRotationDeg : (footprint?.rotationDeg ?? 0);
-  const activeLatOffsetM = overrideLatOffsetM !== undefined ? overrideLatOffsetM : footprint?.latOffsetM;
-  const activeLngOffsetM = overrideLngOffsetM !== undefined ? overrideLngOffsetM : footprint?.lngOffsetM;
+  const activeHeight = positiveNumber(overrideHeight, application.extractedData?.proposedHeight ?? 3);
+  const activeVolume = positiveNumber(application.extractedData?.proposedVolume, 30);
+  const activeWidthM = positiveNumber(overrideWidth, footprint?.widthM ?? 10);
+  const activeDepthM = positiveNumber(overrideDepth, footprint?.depthM ?? 10);
+  const activeRotationDeg = finiteNumber(overrideRotationDeg, footprint?.rotationDeg ?? 0);
+  const activeLatOffsetM = finiteNumber(overrideLatOffsetM, footprint?.latOffsetM ?? 0);
+  const activeLngOffsetM = finiteNumber(overrideLngOffsetM, footprint?.lngOffsetM ?? 0);
 
   useEffect(() => {
     if (!geo || !containerRef.current) return;
@@ -70,7 +76,7 @@ export default function SiteMap3D({
       center: [geo.lng, geo.lat],
       zoom: 17.2,
       pitch: 62,
-      bearing: -18,
+      bearing: 0,
     });
 
     mapRef.current = map;
@@ -128,7 +134,6 @@ export default function SiteMap3D({
           rotationDeg: activeRotationDeg,
           latOffsetM: activeLatOffsetM,
           lngOffsetM: activeLngOffsetM,
-          verticesM: footprint?.verticesM,
         },
       });
 
@@ -179,7 +184,6 @@ export default function SiteMap3D({
           rotationDeg: activeRotationDeg,
           latOffsetM: activeLatOffsetM,
           lngOffsetM: activeLngOffsetM,
-          verticesM: footprint?.verticesM,
         },
       });
 
@@ -193,7 +197,7 @@ export default function SiteMap3D({
       // MapLibre can briefly remove sources while React remounts during hot
       // updates or route transitions. The next render tick will resync it.
     }
-  }, [ready, geo, activeHeight, activeVolume, activeWidthM, activeDepthM, activeRotationDeg, activeLatOffsetM, activeLngOffsetM, footprint?.verticesM]);
+  }, [ready, geo, activeHeight, activeVolume, activeWidthM, activeDepthM, activeRotationDeg, activeLatOffsetM, activeLngOffsetM]);
 
   if (!geo) {
     return (
