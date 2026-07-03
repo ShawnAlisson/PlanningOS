@@ -78,12 +78,134 @@ Open any completed application's review page and use the **role switcher** (Publ
 - `GET /api/geo/constraints?postcode=` — live planning constraints for a postcode (planning.data.gov.uk)
 - `POST /api/agent/chat` — Fetch.ai / ASI:One-facing chat bridge (see [FETCHAI.md](FETCHAI.md))
 
-## How to test it
+## End-to-end test guide
 
-1. `npm run dev`, then open the home page and search a real postcode.
-2. Walk the 3-step wizard: confirm the live-derived constraints, add a short project description (or a demo preset from the sidebar), optionally attach a drawing.
-3. Watch the processing page (parallel agent execution + audit trail), then the review page: recommendation, agent-by-agent reasoning with real citations/links, the 3D site map, the impact panel, and the access/permissions panel.
-4. Run `npm run lint` before handing it to judges.
+A full walkthrough to convince yourself (or a judge) that every piece is real and working. No API keys are required for steps 1–5; step 6 needs Python for the Fetch.ai agent.
+
+### 0. Setup
+
+```bash
+cp .env.example .env.local   # optional - see comments inside, everything works with none of it set
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### 1. Real postcode + live government data (no LLM needed)
+
+1. On the home page, type a real postcode into the search box, e.g. `SE22 8NG`, `BA1 5HG`, or `SL6 1AP`, and pick a suggestion (this hits `postcodes.io` live — try opening the Network tab and watch the `/api/geo/search` call).
+2. Confirm the address. The app now calls `/api/geo/constraints`, which hits `planning.data.gov.uk` live for that exact lat/lng — you should see real flags appear (e.g. "Conservation area", "Flood Zone 2/3", "Green belt") depending on the postcode you picked. `SE22 8NG` (East Dulwich) has a real conservation area; `BA1 5HG` (Bath) sits in a World Heritage Site / conservation area; pick any rural postcode to see green belt.
+3. Fill in a short project description, e.g. *"Single storey rear extension, 3.2m high, brick to match existing"*, and continue.
+
+### 2. Real 3D footprint from an uploaded drawing
+
+The map's proposed-massing extrusion can be built two ways, and the UI always tells you which one it's using (look at the caption strip under the map on the review page):
+
+- **Schematic (default)** — if you don't upload a `.dxf`, the block is a square sized from the height/volume mentioned in your description (or the LLM's reading of it). Caption reads *"schematic estimated massing"*.
+- **Real (upload a `.dxf`)** — a `.dxf` file is an open, text-based CAD interchange format that every CAD tool (AutoCAD, LibreCAD, QCAD, Revit, FreeCAD, SketchUp, ...) can export via *File → Save As/Export → DXF*, even if you drew the plan in `.dwg`. PlanningOS actually parses the real geometry (`src/lib/services/dxf.ts`) — every `LINE`/`LWPOLYLINE`/`POLYLINE`/`CIRCLE` entity — and computes a true bounding-box footprint, converting units using the file's own `$INSUNITS` header when present. Caption reads *"real footprint from uploaded DXF (WxD m, ...)"*.
+  - **Binary `.dwg` is accepted but only stored as evidence** — there is no reliable open-source DWG parser, so PlanningOS does not pretend to extract geometry from it. This is stated in the upload screen's help text and in the map caption, not hidden.
+
+To test the real path yourself without any CAD software, generate a minimal rectangular DXF and upload it:
+
+```bash
+cat > /tmp/extension.dxf <<'EOF'
+0
+SECTION
+2
+HEADER
+9
+$INSUNITS
+70
+6
+0
+ENDSEC
+0
+SECTION
+2
+ENTITIES
+0
+LWPOLYLINE
+8
+0
+90
+4
+70
+1
+10
+0.0
+20
+0.0
+10
+8.0
+20
+0.0
+10
+8.0
+20
+5.0
+10
+0.0
+20
+5.0
+0
+ENDSEC
+0
+EOF
+EOF
+```
+
+This describes an 8m × 5m rectangle in metres (`$INSUNITS 6`). Upload it in step 3 of the wizard (drag-and-drop or browse, it's a `.dxf` so it's accepted) alongside your description, submit, then on the review page check the map caption shows **"real footprint from uploaded DXF (8m × 5m, DXF $INSUNITS=6)"** and that the extruded block's proportions are visibly rectangular (not square) and correctly oriented.
+
+You can also verify it purely via the API without the UI:
+
+```bash
+curl -s -X POST http://localhost:3000/api/applications/upload \
+  -F 'metadata={"title":"DXF test","description":"Rear extension","address":"SE22 8NG"}' \
+  -F "files=@/tmp/extension.dxf;type=application/dxf" | tee /tmp/app.json
+
+ID=$(python3 -c "import json;print(json.load(open('/tmp/app.json'))['id'])")
+curl -s -X POST http://localhost:3000/api/applications/$ID/run-agents \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['application']['extractedData']['footprint'])"
+# -> {'source': 'dxf', 'widthM': 8.0, 'depthM': 5.0, 'areaM2': 40.0, 'vertexCount': 4, 'unitAssumption': 'DXF $INSUNITS=6'}
+```
+
+### 3. The multi-agent pipeline (Conduct AI track)
+
+On the processing page, watch the five specialist agents (Policy, Heritage, Flood, Highways, Neighbour) run and complete in seconds, each citing the real constraint entities returned in step 1 (e.g. a heritage agent citing the actual conservation area name and a `planning.data.gov.uk` link). On the review page, the "weeks → minutes" impact panel quantifies the time/cost saved versus a manual review.
+
+### 4. Permission-aware memory layer (Based AI track)
+
+On the review page's **Access & permissions** panel:
+
+1. Switch role to **Public** — personal fields (e.g. applicant contact) are redacted; you'll see `[redacted: personal]` rather than the raw value.
+2. Add a case-officer note containing something like `call 07123 456789` — it's classified `personal` automatically at write time (`src/lib/permissions/classify.ts`) and instantly hidden from Public.
+3. Drag the "days since decision" slider past 30 — an `internal` note flips to visible under Public without any manual reclassification (the temporal access rule).
+4. Click **Revoke source access** — every derived record (agent results, decision, evidence) becomes inaccessible to Public/Applicant immediately, because access is resolved live via lineage back to the source application on every read, not cached on the derivative.
+5. Open `/api/applications/:id/audit` — every access decision above is logged with the rule that fired and measured latency (typically well under a millisecond, comfortably inside the sub-200ms P99 requirement).
+
+### 5. Sanity checks
+
+```bash
+npm run lint     # should be clean
+npx tsc --noEmit # should be clean
+npm run build    # production build should succeed
+```
+
+### 6. Fetch.ai / ASI:One agent (optional, needs Python)
+
+See [FETCHAI.md](FETCHAI.md) for the full write-up. Quick local test:
+
+```bash
+cd agentverse
+pip install -r requirements.txt
+export PLANNINGOS_API_URL=http://localhost:3000
+python planningos_agent.py            # prints the agent's address, keep running
+# in a second terminal:
+python test_client_agent.py           # sends a sample planning enquiry and prints the reply
+```
+
+A successful run prints a natural-language reply plus a link to the generated `/review/:id` page — open it to see the same 3D map / agent breakdown / permissions panel produced purely from a chat message.
 
 ## Project layout highlights
 
@@ -91,7 +213,8 @@ Open any completed application's review page and use the **role switcher** (Publ
 src/lib/services/postcodes.ts       postcodes.io client
 src/lib/services/planningData.ts    planning.data.gov.uk client
 src/lib/geo/wkt.ts                  WKT -> GeoJSON parser (no external dep)
-src/lib/geo/massing.ts              schematic 3D massing footprint for the map
+src/lib/geo/massing.ts              3D massing footprint for the map (real DXF geometry if available, else schematic)
+src/lib/services/dxf.ts             real footprint extraction from an uploaded .dxf drawing
 src/lib/llm/client.ts               OpenAI-compatible LLM client (OpenAI/OpenRouter/local)
 src/lib/agents/*.ts                 five specialist agents (deterministic scoring, real-data grounded)
 src/lib/permissions/*.ts            Based AI permission-aware memory layer
@@ -103,7 +226,7 @@ agentverse/planningos_agent.py      deployable Fetch.ai uAgent (Chat Protocol)
 
 - No automated planning *approval* — the system always produces a recommendation for a human case officer.
 - No live council back-office integration (that would need per-council access).
-- No survey-accurate 3D model — the map's proposed-massing extrusion is explicitly labelled schematic, sized from the extracted height/volume.
+- No binary .dwg parsing — DWG is a proprietary Autodesk format with no reliable open-source parser, so .dwg files are stored as evidence only. Upload a **.dxf** export of the same drawing (File → Save As / Export → DXF in AutoCAD, LibreCAD, QCAD, Revit, FreeCAD, etc.) to get a real, to-scale footprint extrusion on the 3D map instead of the schematic estimate. The map UI always labels which one it's showing.
 
 ## Learn more
 

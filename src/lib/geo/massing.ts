@@ -9,19 +9,34 @@ export interface MassingInput {
   lng: number;
   proposedHeight?: number;
   proposedVolume?: number;
+  /** Real width/depth (metres) parsed from an uploaded DXF drawing - see src/lib/services/dxf.ts. */
+  footprint?: { widthM: number; depthM: number };
 }
 
 const METRES_PER_DEGREE_LAT = 111320;
 
 export function buildMassingFootprint(input: MassingInput) {
   const height = input.proposedHeight ?? 3;
-  const volume = input.proposedVolume ?? 30;
-  const footprintArea = Math.max(9, volume / Math.max(height, 1));
-  const side = Math.sqrt(footprintArea);
+
+  let widthM: number;
+  let depthM: number;
+  let isReal = false;
+
+  if (input.footprint) {
+    widthM = input.footprint.widthM;
+    depthM = input.footprint.depthM;
+    isReal = true;
+  } else {
+    const volume = input.proposedVolume ?? 30;
+    const footprintArea = Math.max(9, volume / Math.max(height, 1));
+    const side = Math.sqrt(footprintArea);
+    widthM = side;
+    depthM = side;
+  }
 
   const metresPerDegreeLng = METRES_PER_DEGREE_LAT * Math.cos((input.lat * Math.PI) / 180);
-  const dLat = side / METRES_PER_DEGREE_LAT / 2;
-  const dLng = side / metresPerDegreeLng / 2;
+  const dLat = depthM / METRES_PER_DEGREE_LAT / 2;
+  const dLng = widthM / metresPerDegreeLng / 2;
 
   // Offset slightly "south-east" of the site point so it reads as an addition
   // to the existing building rather than sitting exactly on the postcode centroid.
@@ -40,7 +55,12 @@ export function buildMassingFootprint(input: MassingInput) {
 
   return {
     type: 'Feature' as const,
-    properties: { height, side: Number(side.toFixed(1)) },
+    properties: {
+      height,
+      widthM: Number(widthM.toFixed(1)),
+      depthM: Number(depthM.toFixed(1)),
+      isReal,
+    },
     geometry: {
       type: 'Polygon' as const,
       coordinates: [ring],

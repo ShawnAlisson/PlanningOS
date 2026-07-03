@@ -58,6 +58,16 @@ export interface Application {
     neighbourImpactLevel?: 'low' | 'medium' | 'high';
     boundaryDistance?: number;
     originalHouseWidth?: number;
+    // Real footprint parsed from an uploaded DXF drawing (see src/lib/services/dxf.ts),
+    // or undefined if no DXF was uploaded / it could not be parsed (schematic massing is used instead).
+    footprint?: {
+      source: 'dxf';
+      widthM: number;
+      depthM: number;
+      areaM2: number;
+      vertexCount: number;
+      unitAssumption: string;
+    };
   };
   // --- Permission-aware memory layer (Based AI track) ---
   applicantContact?: ApplicantContact; // classification: personal

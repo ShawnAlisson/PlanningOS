@@ -404,13 +404,17 @@ export default function Dashboard() {
                   <input
                     type="file"
                     multiple
-                    accept=".dwg,.pdf,.png,.jpg,.jpeg"
+                    accept=".dxf,.dwg,.pdf,.png,.jpg,.jpeg"
                     onChange={handleFileUpload}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <Upload className="w-6 h-6 text-slate-400 mx-auto mb-2" />
                   <span className="block text-xs font-semibold text-slate-700">Drag and drop plans here or browse</span>
-                  <span className="block text-[10px] text-slate-400 mt-1">Accepts PDF, PNG, JPG, DWG. If an LLM key is set, images are inspected directly.</span>
+                  <span className="block text-[10px] text-slate-400 mt-1">
+                    Accepts DXF, PDF, PNG, JPG, DWG. Upload a <strong>.dxf</strong> export of your drawing for a real, to-scale 3D
+                    footprint on the site map — binary .dwg is stored as evidence but can&apos;t be geometrically parsed, so it falls
+                    back to a schematic block sized from your description. If an LLM key is set, images are inspected directly.
+                  </span>
                 </div>
               </div>
 

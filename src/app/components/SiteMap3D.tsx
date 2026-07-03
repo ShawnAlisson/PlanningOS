@@ -33,6 +33,7 @@ export default function SiteMap3D({ application, recommendation }: SiteMap3DProp
   const [error, setError] = useState<string | null>(null);
 
   const geo = application.geo;
+  const footprint = application.extractedData?.footprint;
 
   useEffect(() => {
     if (!geo || !containerRef.current) return;
@@ -95,6 +96,7 @@ export default function SiteMap3D({ application, recommendation }: SiteMap3DProp
         lng: geo.lng,
         proposedHeight: application.extractedData?.proposedHeight,
         proposedVolume: application.extractedData?.proposedVolume,
+        footprint: footprint ? { widthM: footprint.widthM, depthM: footprint.depthM } : undefined,
       });
 
       map.addSource('proposed-massing', { type: 'geojson', data: massing });
@@ -150,7 +152,9 @@ export default function SiteMap3D({ application, recommendation }: SiteMap3DProp
         <span className="inline-flex items-center gap-1"><Box className="h-3 w-3 text-violet-600" /> Purple pin: site (postcode centroid, {geo.postcode})</span>
         <span className="inline-flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: recommendation ? DECISION_COLOR[recommendation] : '#7c3aed' }} />
-          Extruded block: schematic proposed massing ({application.extractedData?.proposedHeight ?? 3}m)
+          {footprint
+            ? `Extruded block: real footprint from uploaded DXF (${footprint.widthM}m × ${footprint.depthM}m, ${footprint.unitAssumption}), ${application.extractedData?.proposedHeight ?? 3}m tall`
+            : `Extruded block: schematic estimated massing (${application.extractedData?.proposedHeight ?? 3}m tall) — upload a DXF drawing for a real footprint`}
         </span>
         {CONSTRAINT_STYLES.map(({ key, color, label }) => {
           const count = (application.siteConstraints?.[key] as unknown[] | undefined)?.length || 0;

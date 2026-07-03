@@ -18,6 +18,15 @@ const legacyDecisionNormalizer = z.preprocess((value) => {
   return value;
 }, planningDecisionSchema);
 
+export const dxfFootprintSchema = z.object({
+  source: z.literal('dxf'),
+  widthM: z.number().positive(),
+  depthM: z.number().positive(),
+  areaM2: z.number().positive(),
+  vertexCount: z.number().int().nonnegative(),
+  unitAssumption: z.string(),
+});
+
 export const extractedDataSchema = z.object({
   propertyType: z.string().optional(),
   extensionType: z.string().optional(),
@@ -29,6 +38,7 @@ export const extractedDataSchema = z.object({
   neighbourImpactLevel: z.enum(['low', 'medium', 'high']).optional(),
   boundaryDistance: z.number().nonnegative().optional(),
   originalHouseWidth: z.number().nonnegative().optional(),
+  footprint: dxfFootprintSchema.optional(),
 });
 
 export const geoPointSchema = z.object({

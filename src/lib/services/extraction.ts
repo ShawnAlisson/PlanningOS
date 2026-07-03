@@ -2,12 +2,38 @@ import { extractedDataSchema, type ApplicationInput, type ExtractedData } from '
 import { getStoredNameFromUrl, readStoredBlob } from '../storage/blob';
 import { isLlmConfigured, chatCompletion } from '../llm/client';
 import { derivedFloodZoneLabel, type SiteConstraints } from './planningData';
+import { parseDxfFootprint } from './dxf';
 
 function isImageFile(fileName: string, mimeType?: string) {
   return (
     Boolean(mimeType && mimeType.startsWith('image/')) ||
     /\.(png|jpg|jpeg|webp)$/i.test(fileName)
   );
+}
+
+function isDxfFile(fileName: string) {
+  return /\.dxf$/i.test(fileName);
+}
+
+/**
+ * Real footprint from an uploaded DXF drawing. Binary .dwg files cannot be
+ * parsed by any reliable open-source library, so they are stored as evidence
+ * only - only .dxf (the open, text-based CAD interchange format that AutoCAD,
+ * LibreCAD, QCAD, Revit, FreeCAD, etc. can all export) produces real geometry.
+ */
+async function extractDxfFootprint(input: ApplicationInput): Promise<ExtractedData['footprint']> {
+  const dxfFile = input.files.find((file) => isDxfFile(file.name) && file.url);
+  if (!dxfFile?.url) return undefined;
+
+  try {
+    const storedName = getStoredNameFromUrl(dxfFile.url);
+    if (!storedName) return undefined;
+    const { data } = await readStoredBlob(storedName);
+    return parseDxfFootprint(data.toString('utf8')) || undefined;
+  } catch (error) {
+    console.warn('DXF footprint extraction failed:', error);
+    return undefined;
+  }
 }
 
 function deterministicExtractFromText(input: ApplicationInput): ExtractedData {
@@ -101,14 +127,22 @@ export async function extractStructuredData(
 ): Promise<ExtractedData> {
   const realFacts = siteConstraintsToFacts(input.siteConstraints);
   const heuristic = deterministicExtractFromText(input);
-  const llmFields = await llmExtractProjectDetails(input);
+  const [llmFields, footprint] = await Promise.all([
+    llmExtractProjectDetails(input),
+    extractDxfFootprint(input),
+  ]);
 
   // Precedence (lowest -> highest): real government data, text heuristics, LLM drawing/description
-  // analysis, then explicit manual overrides from the "advanced site facts" form.
-  return extractedDataSchema.parse({
+  // analysis, then explicit manual overrides from the "advanced site facts" form. The DXF footprint
+  // (if any) is always real geometry, so it is applied last, after the manual override merge, and
+  // only overrides the estimated footprint - it never gets clobbered by a manual "advanced facts" entry
+  // that never had footprint data in the first place.
+  const merged = extractedDataSchema.parse({
     ...realFacts,
     ...heuristic,
     ...llmFields,
     ...(input.extractedData || {}),
   });
+
+  return footprint ? { ...merged, footprint } : merged;
 }
